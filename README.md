@@ -103,23 +103,24 @@ accurate answers with **exact source citations**, **confidence scoring**, and a
 ---
 
 ## 📁 Project Structure
-rag-document-qa/
-│
-├── app.py # Streamlit frontend — chat UI, file upload, display logic
-├── ingestion.py # Document ingestion — PDF extraction + image vision pipeline
-├── retrieval.py # FAISS vector store — embed, store, retrieve, confidence score
-├── generation.py # LLM answer generation — prompt engineering, source citing
-├── config.py # Central configuration — paths, models, thresholds
-│
-├── uploads/ # Temporary storage for uploaded files (git-ignored)
-├── vectorstore/ # Persistent FAISS index (git-ignored)
-├── utils/
-│ └── init.py # Helper utilities
-│
-├── .env # API keys (git-ignored — never commit this)
-├── .gitignore # Git ignore rules
-├── requirements.txt # Python dependencies
-└── README.md # This file
+
+    rag-document-qa/
+    │
+    ├── app.py # Streamlit frontend — chat UI, file upload, display logic
+    ├── ingestion.py # Document ingestion — PDF extraction + image vision pipeline
+    ├── retrieval.py # FAISS vector store — embed, store, retrieve, confidence score
+    ├── generation.py # LLM answer generation — prompt engineering, source citing
+    ├── config.py # Central configuration — paths, models, thresholds
+    │
+    ├── uploads/ # Temporary storage for uploaded files (git-ignored)
+    ├── vectorstore/ # Persistent FAISS index (git-ignored)
+    ├── utils/
+    │ └── init.py # Helper utilities
+    │
+    ├── .env # API keys (git-ignored — never commit this)
+    ├── .gitignore # Git ignore rules
+    ├── requirements.txt # Python dependencies
+    └── README.md # This file
 
 
 
