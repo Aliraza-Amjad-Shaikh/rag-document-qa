@@ -139,17 +139,19 @@ accurate answers with **exact source citations**, **confidence scoring**, and a
 git clone https://github.com/your-username/rag-document-qa.git
 cd rag-document-qa
 2. Create Virtual Environment
-Bash
+```
+```Bash
 
 # Mac/Linux
 python3 -m venv venv
 source venv/bin/activate
-
+```
 # Windows
 python -m venv venv
 venv\Scripts\activate
 3. Install Dependencies
-Bash
+
+```Bash
 
 pip install -r requirements.txt
 4. Configure Environment
@@ -159,12 +161,13 @@ env
 
 OPENAI_API_KEY=your-actual-api-key-here
 ⚠️ Never commit your .env file. It is already in .gitignore.
-
+```
 5. Run the Application
-Bash
+```Bash
 
 streamlit run app.py
 The app will open automatically at http://localhost:8501
+```
 
 💡 How to Use
 Upload Documents
@@ -239,4 +242,5 @@ OpenAI — GPT-4o and embedding models
 FAISS — Facebook AI Similarity Search
 PyMuPDF — PDF text extraction
 Streamlit — Frontend framework
+
 <p align="center">Built with ❤️ using LangChain + OpenAI + FAISS + Streamlit by Aliraza Amjad Shaikh</p> ```
