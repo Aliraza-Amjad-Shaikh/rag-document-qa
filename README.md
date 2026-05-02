@@ -29,6 +29,7 @@ accurate answers with **exact source citations**, **confidence scoring**, and a
 ---
 
 ## 🏗️ Architecture
+```
 ┌─────────────────────────────────────────────────────────────┐
 │ USER INTERFACE │
 │ Streamlit (app.py) │
@@ -68,10 +69,6 @@ accurate answers with **exact source citations**, **confidence scoring**, and a
 │ FAISS Local Index │
 │ (Persistent on disk) │
 └─────────────────────────┘
-
-text
-
-
 ---
 
 ## ✨ Features
@@ -122,7 +119,6 @@ rag-document-qa/
 ├── requirements.txt # Python dependencies
 └── README.md # This file
 
-text
 
 
 ---
@@ -217,8 +213,6 @@ API Costs — Every question and every image upload consumes OpenAI API credits.
 📄 License
 This project is licensed under the MIT License.
 
-text
-
 MIT License
 
 Copyright (c) 2024
@@ -242,4 +236,4 @@ OpenAI — GPT-4o and embedding models
 FAISS — Facebook AI Similarity Search
 PyMuPDF — PDF text extraction
 Streamlit — Frontend framework
-<p align="center">Built with ❤️ using LangChain + OpenAI + FAISS + Streamlit</p> ```
+<p align="center">Built with ❤️ using LangChain + OpenAI + FAISS + Streamlit by Aliraza Amjad Shaikh</p> ```
