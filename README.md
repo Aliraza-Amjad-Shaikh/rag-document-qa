@@ -69,6 +69,8 @@ accurate answers with **exact source citations**, **confidence scoring**, and a
 │ FAISS Local Index │
 │ (Persistent on disk) │
 └─────────────────────────┘
+
+```
 ---
 
 ## ✨ Features
