@@ -1,0 +1,37 @@
+# Virtual Environment
+venv/
+env/
+.env
+
+# API Keys
+*.env
+.env.*
+
+# Vector Store (too large for GitHub)
+vectorstore/
+
+# Uploads (user data — never commit)
+uploads/
+
+# Python Cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+
+# Debug Files
+debug.py
+debug_image.py
+
+# VS Code
+.vscode/
+
+# OS Files
+.DS_Store
+Thumbs.db
+
+# Streamlit
+.streamlit/
+
+# Logs
+*.log
