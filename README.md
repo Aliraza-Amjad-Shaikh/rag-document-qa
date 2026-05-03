@@ -28,7 +28,7 @@ accurate answers with **exact source citations**, **confidence scoring**, and a
 ---
 
 ## 🏗️ Architecture
-```
+
 ┌─────────────────────────────────────────────────────────────┐
 │ USER INTERFACE │
 │ Streamlit (app.py) │
@@ -69,7 +69,6 @@ accurate answers with **exact source citations**, **confidence scoring**, and a
 │ (Persistent on disk) │
 └─────────────────────────┘
 
-```
 ---
 
 ## ✨ Features
