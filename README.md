@@ -24,7 +24,6 @@ accurate answers with **exact source citations**, **confidence scoring**, and a
 |---|---|
 | ![Upload Screen](screenshots/upload.png) | ![QA Screen](screenshots/qa.png) |
 
-> 💡 Add your own screenshots to a `screenshots/` folder to populate this section.
 
 ---
 
