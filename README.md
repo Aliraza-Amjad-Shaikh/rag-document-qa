@@ -29,6 +29,7 @@ accurate answers with **exact source citations**, **confidence scoring**, and a
 ---
 
 ## 🏗️ Architecture
+```
 ┌─────────────────────────────────────────────────────────────┐
 │ USER INTERFACE │
 │ Streamlit (app.py) │
@@ -69,9 +70,7 @@ accurate answers with **exact source citations**, **confidence scoring**, and a
 │ (Persistent on disk) │
 └─────────────────────────┘
 
-text
-
-
+```
 ---
 
 ## ✨ Features
@@ -104,25 +103,25 @@ text
 ---
 
 ## 📁 Project Structure
-rag-document-qa/
-│
-├── app.py # Streamlit frontend — chat UI, file upload, display logic
-├── ingestion.py # Document ingestion — PDF extraction + image vision pipeline
-├── retrieval.py # FAISS vector store — embed, store, retrieve, confidence score
-├── generation.py # LLM answer generation — prompt engineering, source citing
-├── config.py # Central configuration — paths, models, thresholds
-│
-├── uploads/ # Temporary storage for uploaded files (git-ignored)
-├── vectorstore/ # Persistent FAISS index (git-ignored)
-├── utils/
-│ └── init.py # Helper utilities
-│
-├── .env # API keys (git-ignored — never commit this)
-├── .gitignore # Git ignore rules
-├── requirements.txt # Python dependencies
-└── README.md # This file
 
-text
+    rag-document-qa/
+    │
+    ├── app.py # Streamlit frontend — chat UI, file upload, display logic
+    ├── ingestion.py # Document ingestion — PDF extraction + image vision pipeline
+    ├── retrieval.py # FAISS vector store — embed, store, retrieve, confidence score
+    ├── generation.py # LLM answer generation — prompt engineering, source citing
+    ├── config.py # Central configuration — paths, models, thresholds
+    │
+    ├── uploads/ # Temporary storage for uploaded files (git-ignored)
+    ├── vectorstore/ # Persistent FAISS index (git-ignored)
+    ├── utils/
+    │ └── init.py # Helper utilities
+    │
+    ├── .env # API keys (git-ignored — never commit this)
+    ├── .gitignore # Git ignore rules
+    ├── requirements.txt # Python dependencies
+    └── README.md # This file
+
 
 
 ---
@@ -140,17 +139,19 @@ text
 git clone https://github.com/your-username/rag-document-qa.git
 cd rag-document-qa
 2. Create Virtual Environment
-Bash
+```
+```Bash
 
 # Mac/Linux
 python3 -m venv venv
 source venv/bin/activate
-
+```
 # Windows
 python -m venv venv
 venv\Scripts\activate
 3. Install Dependencies
-Bash
+
+```Bash
 
 pip install -r requirements.txt
 4. Configure Environment
@@ -160,12 +161,13 @@ env
 
 OPENAI_API_KEY=your-actual-api-key-here
 ⚠️ Never commit your .env file. It is already in .gitignore.
-
+```
 5. Run the Application
-Bash
+```Bash
 
 streamlit run app.py
 The app will open automatically at http://localhost:8501
+```
 
 💡 How to Use
 Upload Documents
@@ -217,8 +219,6 @@ API Costs — Every question and every image upload consumes OpenAI API credits.
 📄 License
 This project is licensed under the MIT License.
 
-text
-
 MIT License
 
 Copyright (c) 2024
@@ -242,4 +242,5 @@ OpenAI — GPT-4o and embedding models
 FAISS — Facebook AI Similarity Search
 PyMuPDF — PDF text extraction
 Streamlit — Frontend framework
-<p align="center">Built with ❤️ using LangChain + OpenAI + FAISS + Streamlit</p> ```
+
+<p align="center">Built with ❤️ using LangChain + OpenAI + FAISS + Streamlit by Aliraza Amjad Shaikh</p> ```
