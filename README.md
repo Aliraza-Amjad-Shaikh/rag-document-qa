@@ -28,8 +28,8 @@ accurate answers with **exact source citations**, **confidence scoring**, and a
 ---
 
 ## 🏗️ Architecture
-```
 
+```mermaid
 ┌─────────────────────────────────────────────────────────────┐
 │ USER INTERFACE │
 │ Streamlit (app.py) │
