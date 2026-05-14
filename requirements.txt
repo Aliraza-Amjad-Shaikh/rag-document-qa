@@ -8,3 +8,6 @@ streamlit
 python-dotenv
 tiktoken
 Pillow
+langchain-google-genai
+langchain-huggingface
+langchain-experimental

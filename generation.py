@@ -1,26 +1,34 @@
-from openai import OpenAI
+from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.documents import Document
-from config import OPENAI_API_KEY, CHAT_MODEL
+from langchain_core.messages import HumanMessage, SystemMessage
+from typing import List
+
+from config import GOOGLE_API_KEY, CHAT_MODEL
+
 
 # ─────────────────────────────────────────────
-# OpenAI Client
-# ─────────────────────────────────────────────
-client = OpenAI(api_key=OPENAI_API_KEY)
-
-# ─────────────────────────────────────────────
-# Format Retrieved Chunks into Context Block
+# Initialize Gemini LLM
 # ─────────────────────────────────────────────
 
-def format_context(chunks: list[Document]) -> str:
+def get_llm() -> ChatGoogleGenerativeAI:
     """
-    Format retrieved document chunks into a structured
-    context block for the LLM prompt.
+    Initialize and return Gemini chat model via LangChain.
+    """
+    return ChatGoogleGenerativeAI(
+        model=CHAT_MODEL,
+        google_api_key=GOOGLE_API_KEY,
+        temperature=0,
+        max_output_tokens=1500
+    )
 
-    Args:
-        chunks: List of retrieved Document objects
 
-    Returns:
-        Formatted context string
+# ─────────────────────────────────────────────
+# Format Context
+# ─────────────────────────────────────────────
+
+def format_context(chunks: List[Document]) -> str:
+    """
+    Format retrieved chunks into a structured context block.
     """
     context_parts = []
 
@@ -45,39 +53,31 @@ def format_context(chunks: list[Document]) -> str:
 
 
 # ─────────────────────────────────────────────
-# Build the LLM Prompt
+# Build Prompt
 # ─────────────────────────────────────────────
 
-def build_prompt(question: str, context: str) -> list[dict]:
+def build_prompt(question: str, context: str) -> list:
     """
-    Build the messages list for OpenAI chat completion.
-    Enforces strict grounding while being helpful.
-
-    Args:
-        question: User's natural language question
-        context:  Formatted context from format_context()
-
-    Returns:
-        List of message dicts for OpenAI API
+    Build LangChain messages list for Gemini.
     """
-    system_prompt = """You are a precise and trustworthy document assistant.
+    system_content = """You are a precise and trustworthy document assistant.
 
-Your ONLY job is to answer questions using the document context provided below.
+Your ONLY job is to answer questions using the document context provided.
 
 STRICT RULES:
 1. Answer ONLY using information from the provided context.
 2. ALWAYS cite your source using this format:
-   - For PDFs: (Source: filename.pdf | Page X)
+   - For PDFs:   (Source: filename.pdf | Page X)
    - For Images: (Source: imagename.png | Image)
 3. If the answer is clearly present in the context, you MUST answer it fully.
-4. Only say "I don't know based on the provided documents." if the topic is 
-   completely absent from ALL provided context chunks.
+4. Only say exactly "I don't know based on the provided documents." if the
+   topic is completely absent from ALL provided context chunks.
 5. NEVER fabricate or infer beyond what is written.
 6. NEVER reference outside knowledge or training data.
-7. Be thorough — if multiple chunks support the answer, use all of them.
-8. Format your answer clearly with bullet points or paragraphs as appropriate."""
+7. Be thorough — use all relevant chunks to form your answer.
+8. Format your answer clearly with bullet points or paragraphs as needed."""
 
-    user_message = f"""Here is the relevant context retrieved from the uploaded documents:
+    user_content = f"""Here is the relevant context retrieved from uploaded documents:
 
 ──────────────────────────────────────────────────────
 {context}
@@ -87,38 +87,29 @@ Based STRICTLY on the context above, answer this question:
 QUESTION: {question}
 
 Remember:
-- If the answer exists in ANY of the context chunks above, you MUST provide it.
-- Cite the exact source for every claim you make.
-- Only respond with "I don't know based on the provided documents." if the 
-  topic is completely absent from the context.
+- If the answer exists in ANY context chunk above, you MUST provide it.
+- Cite the exact source for every claim.
+- Only say "I don't know based on the provided documents." if the topic
+  is completely absent from the context.
 
 ANSWER:"""
 
     return [
-        {"role": "system", "content": system_prompt},
-        {"role": "user",   "content": user_message}
+        SystemMessage(content=system_content),
+        HumanMessage(content=user_content)
     ]
 
 
 # ─────────────────────────────────────────────
-# Check if LLM Genuinely Could Not Answer
+# Fallback Detection
 # ─────────────────────────────────────────────
 
 def is_fallback_response(answer: str) -> bool:
     """
-    Detect if the LLM genuinely could not answer
-    using EXACT phrase matching only.
-    Avoids false positives from partial phrase matches.
-
-    Args:
-        answer: LLM generated answer string
-
-    Returns:
-        True if this is a genuine fallback response
+    Detect if the LLM genuinely could not answer.
+    Uses exact phrase matching only — avoids false positives.
     """
     answer_lower = answer.lower().strip()
-
-    # Only trigger fallback on these EXACT phrases
     fallback_phrases = [
         "i don't know based on the provided documents",
         "i do not know based on the provided documents",
@@ -127,23 +118,16 @@ def is_fallback_response(answer: str) -> bool:
         "not mentioned in the provided documents",
         "no information available in the provided documents",
     ]
-
     return any(phrase in answer_lower for phrase in fallback_phrases)
 
 
 # ─────────────────────────────────────────────
-# Extract Source Citations
+# Extract Sources
 # ─────────────────────────────────────────────
 
-def extract_sources(chunks: list[Document]) -> list[dict]:
+def extract_sources(chunks: List[Document]) -> list:
     """
-    Extract unique source citations from retrieved chunks.
-
-    Args:
-        chunks: List of retrieved Document objects
-
-    Returns:
-        List of unique source citation dicts
+    Extract unique source citations from chunks.
     """
     seen    = set()
     sources = []
@@ -181,30 +165,18 @@ def extract_sources(chunks: list[Document]) -> list[dict]:
 # ─────────────────────────────────────────────
 
 def generate_answer(
-    question:     str,
-    chunks:       list[Document],
-    confidence:   str,
+    question:      str,
+    chunks:        List[Document],
+    confidence:    str,
     should_answer: bool
 ) -> dict:
     """
-    Generate a grounded answer using the LLM.
-    Triggers fallback ONLY when confidence is Low
-    or no chunks were retrieved.
-
-    Args:
-        question:      User's natural language question
-        chunks:        Retrieved Document chunks
-        confidence:    Confidence label (High/Medium/Low)
-        should_answer: Boolean from retrieval pipeline
-
-    Returns:
-        dict with keys:
-            - answer, confidence, sources, fallback
+    Generate a grounded answer using Gemini.
+    Triggers fallback if confidence is Low or no chunks found.
     """
-    # ── Hard fallback: No chunks or Low confidence ──
+    # Hard fallback
     if not should_answer or not chunks:
-        print(f"[GENERATION] Fallback triggered — "
-              f"should_answer={should_answer}, chunks={len(chunks)}")
+        print(f"[GENERATION] Fallback — should_answer={should_answer}, chunks={len(chunks)}")
         return {
             "answer":     "I don't know based on the provided documents.",
             "confidence": confidence,
@@ -212,25 +184,20 @@ def generate_answer(
             "fallback":   True
         }
 
-    # ── Format context and build prompt ──
     context  = format_context(chunks)
     messages = build_prompt(question, context)
 
-    print(f"[GENERATION] Sending {len(chunks)} chunks to LLM...")
-    print(f"[GENERATION] Context length: {len(context)} characters")
+    print(f"[GENERATION] Sending {len(chunks)} chunks to Gemini...")
+    print(f"[GENERATION] Context: {len(context)} characters")
 
     try:
-        response = client.chat.completions.create(
-            model=CHAT_MODEL,
-            messages=messages,
-            temperature=0,
-            max_tokens=1500
-        )
-        answer = response.choices[0].message.content.strip()
-        print(f"[GENERATION] Answer received: {answer[:100]}...")
+        llm      = get_llm()
+        response = llm.invoke(messages)
+        answer   = response.content.strip()
+        print(f"[GENERATION] ✅ Answer received: {answer[:100]}...")
 
     except Exception as e:
-        print(f"[ERROR] LLM generation failed: {e}")
+        print(f"[ERROR] Gemini generation failed: {e}")
         return {
             "answer":     "I don't know based on the provided documents.",
             "confidence": "Low",
@@ -238,10 +205,7 @@ def generate_answer(
             "fallback":   True
         }
 
-    # ── Extract sources ──
-    sources = extract_sources(chunks)
-
-    # ── Check if LLM itself said it doesn't know ──
+    sources  = extract_sources(chunks)
     fallback = is_fallback_response(answer)
 
     return {
@@ -265,43 +229,30 @@ if __name__ == "__main__":
         sys.exit(1)
 
     file_paths = sys.argv[1:]
+    vs         = get_or_build_vectorstore()
 
-    vs = get_or_build_vectorstore()
     if not vs:
         print("🔄 Building vector store...")
         docs = ingest_documents(file_paths)
         from retrieval import build_vectorstore, save_vectorstore
-        vs = build_vectorstore(docs)
+        vs   = build_vectorstore(docs)
         save_vectorstore(vs)
 
     test_queries = [
-        "What is scikit learn?",
-        "What is supervised learning?",
+        "What is Machine Learning?",
         "What is the weather like today?",
     ]
-
-    print("\n" + "="*60)
-    print("LLM ANSWER GENERATION TEST")
-    print("="*60)
 
     for query in test_queries:
         print(f"\n{'─'*60}")
         print(f"❓ QUESTION: {query}")
-
         retrieval_result = retrieve_relevant_chunks(query, vs)
-        result = generate_answer(
+        result           = generate_answer(
             question=query,
             chunks=retrieval_result["chunks"],
             confidence=retrieval_result["confidence"],
             should_answer=retrieval_result["should_answer"]
         )
-
-        print(f"\n💬 ANSWER:\n{result['answer']}")
-        print(f"\n📊 CONFIDENCE : {result['confidence']}")
-        print(f"🔁 FALLBACK   : {result['fallback']}")
-        print(f"\n📚 SOURCES:")
-        for s in result["sources"]:
-            if s["type"] == "pdf":
-                print(f"   - {s['source']} | Page {s['page_number']}")
-            else:
-                print(f"   - {s['image_name']} | Image")
+        print(f"💬 ANSWER    : {result['answer']}")
+        print(f"📊 CONFIDENCE: {result['confidence']}")
+        print(f"🔁 FALLBACK  : {result['fallback']}")

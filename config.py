@@ -2,14 +2,15 @@ import os
 from dotenv import load_dotenv
 
 # ─────────────────────────────────────────────
-# Load environment variables from .env file
+# Load environment variables
 # ─────────────────────────────────────────────
 load_dotenv()
 
 # ─────────────────────────────────────────────
-# OpenAI API Key
+# API Keys
 # ─────────────────────────────────────────────
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+GOOGLE_API_KEY      = os.getenv("GOOGLE_API_KEY")
+HUGGINGFACEHUB_API_TOKEN = os.getenv("HUGGINGFACEHUB_API_TOKEN")
 
 # ─────────────────────────────────────────────
 # Folder Paths
@@ -21,42 +22,49 @@ VECTORSTORE_DIR = os.path.join(BASE_DIR, "vectorstore")
 # ─────────────────────────────────────────────
 # Model Names
 # ─────────────────────────────────────────────
-VISION_MODEL    = "gpt-4o"          # Used for image description (Phase 2)
-EMBEDDING_MODEL = "text-embedding-3-small"  # Used for FAISS embeddings (Phase 3)
-CHAT_MODEL      = "gpt-4o"          # Used for answer generation (Phase 5)
+VISION_MODEL     = "gemini-2.5-flash"   # Used for image description
+CHAT_MODEL       = "gemini-2.5-flash"   # Used for answer generation
+EMBEDDING_MODEL  = "sentence-transformers/all-MiniLM-L6-v2"  # HF embeddings
 
 # ─────────────────────────────────────────────
 # Chunking Settings
 # ─────────────────────────────────────────────
-CHUNK_SIZE      = 1000   # Max characters per chunk
-CHUNK_OVERLAP   = 150    # Overlap between chunks to preserve context
+CHUNK_SIZE    = 1000
+CHUNK_OVERLAP = 150
+
+# ─────────────────────────────────────────────
+# Semantic Chunking Settings
+# ─────────────────────────────────────────────
+SEMANTIC_BREAKPOINT_TYPE       = "percentile"  # Options: percentile, standard_deviation, interquartile
+SEMANTIC_BREAKPOINT_THRESHOLD  = 85            # Higher = fewer, larger chunks. Lower = more, smaller chunks
+MAX_SEMANTIC_CHUNK_SIZE        = 1500          # Hard cap — semantic chunks larger than this get split further
+MIN_SEMANTIC_CHUNK_SIZE        = 50            # Hard floor — chunks smaller than this get dropped
 
 # ─────────────────────────────────────────────
 # Retrieval Settings
 # ─────────────────────────────────────────────
-TOP_K_RESULTS   = 6     # Number of chunks to retrieve per query
+TOP_K_RESULTS = 6
 
 # ─────────────────────────────────────────────
 # Confidence Score Thresholds
 # ─────────────────────────────────────────────
-CONFIDENCE_HIGH   = 0.60   # Score above this → High confidence
-CONFIDENCE_MEDIUM = 0.40   # Score above this → Medium confidence
-                            # Score below this → Low confidence → "I don't know"
+CONFIDENCE_HIGH   = 0.60
+CONFIDENCE_MEDIUM = 0.40
 
 # ─────────────────────────────────────────────
 # Supported File Types
 # ─────────────────────────────────────────────
-PDF_EXTENSIONS   = [".pdf"]
-IMAGE_EXTENSIONS = [".jpg", ".jpeg", ".png", ".webp"]
+PDF_EXTENSIONS       = [".pdf"]
+IMAGE_EXTENSIONS     = [".jpg", ".jpeg", ".png", ".webp"]
 SUPPORTED_EXTENSIONS = PDF_EXTENSIONS + IMAGE_EXTENSIONS
 
 # ─────────────────────────────────────────────
-# FAISS Vector Store File Names
+# FAISS Index Name
 # ─────────────────────────────────────────────
-FAISS_INDEX_NAME = "faiss_index"   # FAISS will save as faiss_index.faiss + faiss_index.pkl
+FAISS_INDEX_NAME = "faiss_index"
 
 # ─────────────────────────────────────────────
-# Ensure required directories exist at startup
+# Ensure directories exist
 # ─────────────────────────────────────────────
-os.makedirs(UPLOAD_DIR, exist_ok=True)
+os.makedirs(UPLOAD_DIR,      exist_ok=True)
 os.makedirs(VECTORSTORE_DIR, exist_ok=True)
