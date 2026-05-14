@@ -532,13 +532,12 @@ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
 ---
 
 <p align="center">
-  Built with ❤️ using LangChain · Google Gemini · HuggingFace · FAISS · Streamlit
+  Built with ❤️ by Aliraza Amjad Shaikh using LangChain · Google Gemini · HuggingFace · FAISS · Streamlit
 </p>
 <p align="center">
   <a href="https://github.com/Aliraza-Amjad-Shaikh/rag-document-qa">
     ⭐ Star this repo if you found it useful!
   </a>
 </p>
-```
 
 ---
