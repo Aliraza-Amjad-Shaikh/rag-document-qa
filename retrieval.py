@@ -1,12 +1,12 @@
 import os
 import shutil
 from typing import List
-from langchain_huggingface import HuggingFaceEndpointEmbeddings
+from langchain_openai import OpenAIEmbeddings
 from langchain_community.vectorstores import FAISS
 from langchain_core.documents import Document
 
 from config import (
-    HUGGINGFACEHUB_API_TOKEN,
+    OPENAI_API_KEY,
     EMBEDDING_MODEL,
     VECTORSTORE_DIR,
     FAISS_INDEX_NAME,
@@ -15,21 +15,19 @@ from config import (
     CONFIDENCE_MEDIUM
 )
 
-
 # ─────────────────────────────────────────────
 # Embeddings Initialization
 # ─────────────────────────────────────────────
 
-def get_embeddings() -> HuggingFaceEndpointEmbeddings:
+def get_embeddings() -> OpenAIEmbeddings:
     """
-    Initialize HuggingFace Inference API embeddings.
-    Uses sentence-transformers/all-MiniLM-L6-v2 model.
+    Initialize OpenAI embeddings.
+    Uses text-embedding-3-small model (1536-dim).
     """
-    return HuggingFaceEndpointEmbeddings(
+    return OpenAIEmbeddings(
         model=EMBEDDING_MODEL,
-        huggingfacehub_api_token=HUGGINGFACEHUB_API_TOKEN
+        openai_api_key=OPENAI_API_KEY
     )
-
 
 # ─────────────────────────────────────────────
 # Build Vector Store
@@ -42,12 +40,11 @@ def build_vectorstore(documents: List[Document]) -> FAISS:
     if not documents:
         raise ValueError("[ERROR] No documents provided.")
 
-    embeddings  = get_embeddings()
+    embeddings = get_embeddings()
     print(f"[VECTORSTORE] Embedding {len(documents)} chunks using {EMBEDDING_MODEL}...")
     vectorstore = FAISS.from_documents(documents, embeddings)
     print("[VECTORSTORE] ✅ Embedding complete.")
     return vectorstore
-
 
 # ─────────────────────────────────────────────
 # Save Vector Store
@@ -59,21 +56,20 @@ def save_vectorstore(vectorstore: FAISS) -> None:
     vectorstore.save_local(save_path)
     print(f"[VECTORSTORE] ✅ Saved to: {save_path}")
 
-
 # ─────────────────────────────────────────────
 # Load Vector Store
 # ─────────────────────────────────────────────
 
 def load_vectorstore() -> FAISS | None:
     """Load existing FAISS index from disk."""
-    save_path  = os.path.join(VECTORSTORE_DIR, FAISS_INDEX_NAME)
+    save_path = os.path.join(VECTORSTORE_DIR, FAISS_INDEX_NAME)
     index_file = os.path.join(save_path, "index.faiss")
 
     if not os.path.exists(index_file):
         print("[VECTORSTORE] No existing index found.")
         return None
 
-    embeddings  = get_embeddings()
+    embeddings = get_embeddings()
     print("[VECTORSTORE] Loading existing index...")
     vectorstore = FAISS.load_local(
         save_path,
@@ -83,7 +79,6 @@ def load_vectorstore() -> FAISS | None:
     print("[VECTORSTORE] ✅ Index loaded.")
     return vectorstore
 
-
 # ─────────────────────────────────────────────
 # Confidence Scoring
 # ─────────────────────────────────────────────
@@ -91,7 +86,6 @@ def load_vectorstore() -> FAISS | None:
 def normalize_score(raw_score: float) -> float:
     """Convert FAISS L2 distance to 0-1 similarity."""
     return 1 / (1 + raw_score)
-
 
 def compute_confidence(score: float) -> str:
     """Convert similarity score to confidence label."""
@@ -101,7 +95,6 @@ def compute_confidence(score: float) -> str:
         return "Medium"
     else:
         return "Low"
-
 
 # ─────────────────────────────────────────────
 # Retrieval Pipeline
@@ -115,9 +108,9 @@ def retrieve_relevant_chunks(query: str, vectorstore: FAISS) -> dict:
 
     if not results:
         return {
-            "chunks":        [],
-            "scores":        [],
-            "confidence":    "Low",
+            "chunks": [],
+            "scores": [],
+            "confidence": "Low",
             "should_answer": False
         }
 
@@ -129,9 +122,9 @@ def retrieve_relevant_chunks(query: str, vectorstore: FAISS) -> dict:
         chunks.append(doc)
         scores.append(normalized)
 
-    best_score    = max(scores)
-    top2_avg      = sum(sorted(scores, reverse=True)[:2]) / 2
-    confidence    = compute_confidence(top2_avg)
+    best_score = max(scores)
+    top2_avg = sum(sorted(scores, reverse=True)[:2]) / 2
+    confidence = compute_confidence(top2_avg)
     should_answer = confidence != "Low"
 
     print(f"\n[RETRIEVAL] Query: '{query}'")
@@ -143,12 +136,11 @@ def retrieve_relevant_chunks(query: str, vectorstore: FAISS) -> dict:
               f"page={chunk.metadata.get('page_number', 'N/A')}")
 
     return {
-        "chunks":        chunks,
-        "scores":        scores,
-        "confidence":    confidence,
+        "chunks": chunks,
+        "scores": scores,
+        "confidence": confidence,
         "should_answer": should_answer
     }
-
 
 # ─────────────────────────────────────────────
 # Master Vector Store Handler
@@ -177,7 +169,6 @@ def get_or_build_vectorstore(documents: List[Document] = None) -> FAISS | None:
     print("[VECTORSTORE] No index found and no documents provided.")
     return None
 
-
 # ─────────────────────────────────────────────
 # Clear Vector Store
 # ─────────────────────────────────────────────
@@ -191,7 +182,6 @@ def clear_vectorstore() -> None:
     else:
         print("[VECTORSTORE] Nothing to clear.")
 
-
 # ─────────────────────────────────────────────
 # Smoke Test
 # ─────────────────────────────────────────────
@@ -203,14 +193,14 @@ if __name__ == "__main__":
         print("Usage: python retrieval.py <file1> <file2> ...")
         sys.exit(1)
 
-    file_paths  = sys.argv[1:]
+    file_paths = sys.argv[1:]
     existing_vs = load_vectorstore()
 
     if existing_vs:
         vs = existing_vs
     else:
         docs = ingest_documents(file_paths)
-        vs   = build_vectorstore(docs)
+        vs = build_vectorstore(docs)
         save_vectorstore(vs)
 
     test_queries = [
