@@ -61,6 +61,12 @@ IMAGE_EXTENSIONS = [".jpg", ".jpeg", ".png", ".webp"]
 SUPPORTED_EXTENSIONS = PDF_EXTENSIONS + IMAGE_EXTENSIONS
 
 # ─────────────────────────────────────────────
+# Query Rewriting (HyDE-lite)
+# ─────────────────────────────────────────────
+ENABLE_QUERY_REWRITING = True  # Toggle to disable without code changes
+QUERY_REWRITE_TEMPERATURE = 0  # Deterministic rewrites
+
+# ─────────────────────────────────────────────
 # FAISS Index Name
 # ─────────────────────────────────────────────
 FAISS_INDEX_NAME = "faiss_index"

@@ -4,6 +4,8 @@ from typing import List
 from langchain_openai import OpenAIEmbeddings
 from langchain_community.vectorstores import FAISS
 from langchain_core.documents import Document
+from langchain_openai import ChatOpenAI
+from langchain_core.messages import HumanMessage
 
 from config import (
     OPENAI_API_KEY,
@@ -12,7 +14,10 @@ from config import (
     FAISS_INDEX_NAME,
     TOP_K_RESULTS,
     CONFIDENCE_HIGH,
-    CONFIDENCE_MEDIUM
+    CONFIDENCE_MEDIUM,
+    CHAT_MODEL,
+    ENABLE_QUERY_REWRITING,
+    QUERY_REWRITE_TEMPERATURE
 )
 
 # ─────────────────────────────────────────────
@@ -28,6 +33,39 @@ def get_embeddings() -> OpenAIEmbeddings:
         model=EMBEDDING_MODEL,
         openai_api_key=OPENAI_API_KEY
     )
+
+# ─────────────────────────────────────────────
+# Query Rewriting (HyDE-lite)
+# ─────────────────────────────────────────────
+
+def rewrite_query(query: str) -> str:
+    """
+    Rewrite a user's question into a clearer, more document-aligned
+    phrasing to improve semantic retrieval. The original question is
+    still used for the final LLM prompt in generation.py — this
+    rewrite is retrieval-only.
+    """
+    try:
+        llm = ChatOpenAI(
+            model=CHAT_MODEL,
+            openai_api_key=OPENAI_API_KEY,
+            temperature=QUERY_REWRITE_TEMPERATURE
+        )
+        prompt = f"""Rewrite the following question to be clearer and more complete,
+as it might appear in a formal document. Do not answer it — only rephrase it.
+Keep it as a single question.
+
+Original question: {query}
+
+Rewritten question:"""
+        response = llm.invoke([HumanMessage(content=prompt)])
+        rewritten = response.content.strip()
+        print(f"[REWRITE] Original : {query}")
+        print(f"[REWRITE] Rewritten: {rewritten}")
+        return rewritten
+    except Exception as e:
+        print(f"[REWRITE] ❌ Failed — using original query. Error: {e}")
+        return query
 
 # ─────────────────────────────────────────────
 # Build Vector Store
@@ -103,8 +141,11 @@ def compute_confidence(score: float) -> str:
 def retrieve_relevant_chunks(query: str, vectorstore: FAISS) -> dict:
     """
     Retrieve top-k relevant chunks with confidence scoring.
+    Uses a rewritten query for embedding/search if enabled,
+    but preserves the original query for logging.
     """
-    results = vectorstore.similarity_search_with_score(query, k=TOP_K_RESULTS)
+    search_query = rewrite_query(query) if ENABLE_QUERY_REWRITING else query
+    results = vectorstore.similarity_search_with_score(search_query, k=TOP_K_RESULTS)
 
     if not results:
         return {
@@ -204,7 +245,7 @@ if __name__ == "__main__":
         save_vectorstore(vs)
 
     test_queries = [
-        "What is Machine Learning?",
+        "Any Important Note in the document?",
         "What is the weather like today?",
     ]
 
