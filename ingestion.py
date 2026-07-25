@@ -2,16 +2,15 @@ import os
 import re
 import fitz  # PyMuPDF
 import base64
-import httpx
 from typing import List
 from PIL import Image
 import io
 
-import google.generativeai as genai
 from langchain_core.documents import Document
+from langchain_core.messages import HumanMessage
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_experimental.text_splitter import SemanticChunker
-from langchain_huggingface import HuggingFaceEndpointEmbeddings
+from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 
 from config import (
     UPLOAD_DIR,
@@ -20,9 +19,8 @@ from config import (
     PDF_EXTENSIONS,
     IMAGE_EXTENSIONS,
     SUPPORTED_EXTENSIONS,
-    GOOGLE_API_KEY,
+    OPENAI_API_KEY,
     VISION_MODEL,
-    HUGGINGFACEHUB_API_TOKEN,
     EMBEDDING_MODEL,
     SEMANTIC_BREAKPOINT_TYPE,
     SEMANTIC_BREAKPOINT_THRESHOLD,
@@ -31,18 +29,12 @@ from config import (
 )
 
 # ─────────────────────────────────────────────
-# Configure Gemini
-# ─────────────────────────────────────────────
-genai.configure(api_key=GOOGLE_API_KEY)
-
-
-# ─────────────────────────────────────────────
 # Initialize Semantic Chunker
 # ─────────────────────────────────────────────
 
 def get_semantic_chunker() -> SemanticChunker:
     """
-    Initialize LangChain SemanticChunker using HuggingFace
+    Initialize LangChain SemanticChunker using OpenAI
     embeddings to detect topic boundaries in text.
 
     The chunker embeds every sentence, measures how much
@@ -52,9 +44,9 @@ def get_semantic_chunker() -> SemanticChunker:
     Returns:
         SemanticChunker instance
     """
-    embeddings = HuggingFaceEndpointEmbeddings(
+    embeddings = OpenAIEmbeddings(
         model=EMBEDDING_MODEL,
-        huggingfacehub_api_token=HUGGINGFACEHUB_API_TOKEN
+        openai_api_key=OPENAI_API_KEY
     )
 
     return SemanticChunker(
@@ -62,7 +54,6 @@ def get_semantic_chunker() -> SemanticChunker:
         breakpoint_threshold_type=SEMANTIC_BREAKPOINT_TYPE,
         breakpoint_threshold_amount=SEMANTIC_BREAKPOINT_THRESHOLD
     )
-
 
 def get_recursive_splitter() -> RecursiveCharacterTextSplitter:
     """
@@ -77,7 +68,6 @@ def get_recursive_splitter() -> RecursiveCharacterTextSplitter:
         chunk_overlap=CHUNK_OVERLAP,
         separators=["\n\n", "\n", ". ", "? ", "! ", "; ", ", ", " ", ""]
     )
-
 
 # ─────────────────────────────────────────────
 # Text Cleaning
@@ -101,17 +91,17 @@ def clean_text(text: str) -> str:
 
     # Normalize unicode ligatures and special characters
     replacements = {
-        '\ufb01': 'fi',  '\ufb02': 'fl',  '\ufb00': 'ff',
+        '\ufb01': 'fi', '\ufb02': 'fl', '\ufb00': 'ff',
         '\ufb03': 'ffi', '\ufb04': 'ffl', '\u2019': "'",
-        '\u2018': "'",   '\u201c': '"',   '\u201d': '"',
-        '\u2013': '-',   '\u2014': '--',  '\u2022': '*',
+        '\u2018': "'", '\u201c': '"', '\u201d': '"',
+        '\u2013': '-', '\u2014': '--', '\u2022': '*',
         '\u00a0': ' ',
     }
     for old, new in replacements.items():
         text = text.replace(old, new)
 
     # Clean whitespace per line
-    lines   = text.split('\n')
+    lines = text.split('\n')
     cleaned = []
     for line in lines:
         line = re.sub(r'[ \t]+', ' ', line).strip()
@@ -122,7 +112,7 @@ def clean_text(text: str) -> str:
     text = re.sub(r'\n{3,}', '\n\n', text)
 
     # Filter noise-only lines
-    lines    = text.split('\n')
+    lines = text.split('\n')
     filtered = []
     for line in lines:
         stripped = line.strip()
@@ -137,7 +127,6 @@ def clean_text(text: str) -> str:
 
     return '\n'.join(filtered).strip()
 
-
 # ─────────────────────────────────────────────
 # PDF Text Extraction (Multi-Mode)
 # ─────────────────────────────────────────────
@@ -147,9 +136,9 @@ def extract_text_from_page(page: fitz.Page) -> str:
     Extract text from a PDF page using 3 strategies
     in order of preference.
 
-    Strategy 1: Blocks mode  — best for columns/tables
-    Strategy 2: Raw text     — simple fallback
-    Strategy 3: Dict mode    — deep fallback for complex layouts
+    Strategy 1: Blocks mode — best for columns/tables
+    Strategy 2: Raw text — simple fallback
+    Strategy 3: Dict mode — deep fallback for complex layouts
 
     Args:
         page: PyMuPDF Page object
@@ -161,7 +150,7 @@ def extract_text_from_page(page: fitz.Page) -> str:
 
     # Strategy 1: Blocks
     try:
-        blocks      = page.get_text("blocks", sort=True)
+        blocks = page.get_text("blocks", sort=True)
         block_texts = []
         for block in blocks:
             if len(block) >= 5:
@@ -184,7 +173,7 @@ def extract_text_from_page(page: fitz.Page) -> str:
     # Strategy 3: Dict mode fallback
     if not full_text.strip():
         try:
-            page_dict  = page.get_text("dict")
+            page_dict = page.get_text("dict")
             dict_texts = []
             for block in page_dict.get("blocks", []):
                 if block.get("type") == 0:
@@ -201,7 +190,6 @@ def extract_text_from_page(page: fitz.Page) -> str:
 
     return clean_text(full_text)
 
-
 def extract_pdf_pages(pdf_path: str) -> List[dict]:
     """
     Extract text from every page of a PDF.
@@ -212,7 +200,7 @@ def extract_pdf_pages(pdf_path: str) -> List[dict]:
     Returns:
         List of dicts: {text, page_number, source}
     """
-    pages    = []
+    pages = []
     filename = os.path.basename(pdf_path)
 
     try:
@@ -228,9 +216,9 @@ def extract_pdf_pages(pdf_path: str) -> List[dict]:
                 continue
 
             pages.append({
-                "text":        text,
+                "text": text,
                 "page_number": page_index + 1,
-                "source":      filename
+                "source": filename
             })
             print(f"  [PAGE {page_index + 1}] Extracted {len(text)} chars")
 
@@ -241,16 +229,15 @@ def extract_pdf_pages(pdf_path: str) -> List[dict]:
 
     return pages
 
-
 # ─────────────────────────────────────────────
 # Semantic Chunking Pipeline
 # ─────────────────────────────────────────────
 
 def semantic_chunk_text(
-    text:        str,
-    source:      str,
+    text: str,
+    source: str,
     page_number: int,
-    doc_type:    str,
+    doc_type: str,
     chunk_id_start: int = 0
 ) -> List[Document]:
     """
@@ -263,10 +250,10 @@ def semantic_chunk_text(
     4. Every chunk gets full metadata attached
 
     Args:
-        text:           Raw text to chunk
-        source:         Filename for metadata
-        page_number:    Page number for metadata (0 for images)
-        doc_type:       'pdf' or 'image'
+        text: Raw text to chunk
+        source: Filename for metadata
+        page_number: Page number for metadata (0 for images)
+        doc_type: 'pdf' or 'image'
         chunk_id_start: Starting chunk ID for this batch
 
     Returns:
@@ -275,7 +262,7 @@ def semantic_chunk_text(
     if not text.strip():
         return []
 
-    semantic_chunker   = get_semantic_chunker()
+    semantic_chunker = get_semantic_chunker()
     recursive_splitter = get_recursive_splitter()
 
     # ── Step 1: Semantic split ──
@@ -289,7 +276,7 @@ def semantic_chunk_text(
 
     # ── Step 2: Process each semantic chunk ──
     final_chunks = []
-    chunk_id     = chunk_id_start
+    chunk_id = chunk_id_start
 
     for sem_chunk in raw_semantic_chunks:
         sem_chunk = sem_chunk.strip()
@@ -301,8 +288,8 @@ def semantic_chunk_text(
         # If chunk is within max size → keep as is
         if len(sem_chunk) <= MAX_SEMANTIC_CHUNK_SIZE:
             metadata = {
-                "source":   source,
-                "type":     doc_type,
+                "source": source,
+                "type": doc_type,
                 "chunk_id": chunk_id
             }
             if doc_type == "pdf":
@@ -328,8 +315,8 @@ def semantic_chunk_text(
                     continue
 
                 metadata = {
-                    "source":   source,
-                    "type":     doc_type,
+                    "source": source,
+                    "type": doc_type,
                     "chunk_id": chunk_id
                 }
                 if doc_type == "pdf":
@@ -344,7 +331,6 @@ def semantic_chunk_text(
                 chunk_id += 1
 
     return final_chunks
-
 
 # ─────────────────────────────────────────────
 # PDF Ingestion Pipeline
@@ -362,24 +348,23 @@ def ingest_pdf(pdf_path: str) -> List[Document]:
         List of semantically chunked Document objects
     """
     print(f"\n[PDF] Ingesting: {os.path.basename(pdf_path)}")
-    pages      = extract_pdf_pages(pdf_path)
+    pages = extract_pdf_pages(pdf_path)
     all_chunks = []
-    chunk_id   = 0
+    chunk_id = 0
 
     for page in pages:
         chunks = semantic_chunk_text(
-            text=           page["text"],
-            source=         page["source"],
-            page_number=    page["page_number"],
-            doc_type=       "pdf",
-            chunk_id_start= chunk_id
+            text=page["text"],
+            source=page["source"],
+            page_number=page["page_number"],
+            doc_type="pdf",
+            chunk_id_start=chunk_id
         )
         all_chunks.extend(chunks)
         chunk_id += len(chunks)
 
     print(f"[PDF] ✅ {len(pages)} pages → {len(all_chunks)} semantic chunks")
     return all_chunks
-
 
 # ─────────────────────────────────────────────
 # Image Compression
@@ -390,7 +375,7 @@ def compress_image(image_path: str, max_size_mb: float = 3.0) -> bytes:
     Compress and resize image to stay within API size limits.
 
     Args:
-        image_path:  Path to image file
+        image_path: Path to image file
         max_size_mb: Maximum size in MB before compression
 
     Returns:
@@ -403,13 +388,13 @@ def compress_image(image_path: str, max_size_mb: float = 3.0) -> bytes:
         # Resize if too large
         max_dim = 2048
         if max(img.size) > max_dim:
-            ratio    = max_dim / max(img.size)
+            ratio = max_dim / max(img.size)
             new_size = (int(img.size[0] * ratio), int(img.size[1] * ratio))
-            img      = img.resize(new_size, Image.LANCZOS)
+            img = img.resize(new_size, Image.LANCZOS)
             print(f"  [IMAGE] Resized to {new_size[0]}x{new_size[1]}")
 
         # Compress iteratively
-        buffer  = io.BytesIO()
+        buffer = io.BytesIO()
         quality = 85
         while True:
             buffer.seek(0)
@@ -424,14 +409,13 @@ def compress_image(image_path: str, max_size_mb: float = 3.0) -> bytes:
         buffer.seek(0)
         return buffer.read()
 
-
 # ─────────────────────────────────────────────
-# Image Ingestion (Gemini Vision)
+# Image Ingestion (OpenAI Vision)
 # ─────────────────────────────────────────────
 
 def describe_image_with_vision(image_path: str) -> str:
     """
-    Use Gemini Vision to extract and describe image content.
+    Use OpenAI Vision (gpt-4o-mini) to extract and describe image content.
 
     Args:
         image_path: Absolute path to image
@@ -440,7 +424,7 @@ def describe_image_with_vision(image_path: str) -> str:
         Faithful text description of image content
     """
     filename = os.path.basename(image_path)
-    print(f"  [IMAGE] Sending to Gemini Vision: {filename}")
+    print(f"  [IMAGE] Sending to OpenAI Vision: {filename}")
 
     prompt = """You are a precise document analysis assistant.
 Analyze this image thoroughly and extract ALL of the following:
@@ -462,27 +446,36 @@ IMPORTANT RULES:
 
     try:
         image_bytes = compress_image(image_path)
-        model       = genai.GenerativeModel(VISION_MODEL)
-        response    = model.generate_content([
-            prompt,
-            {
-                "mime_type": "image/jpeg",
-                "data":      image_bytes
-            }
+        b64_image = base64.b64encode(image_bytes).decode("utf-8")
+
+        llm = ChatOpenAI(
+            model=VISION_MODEL,
+            openai_api_key=OPENAI_API_KEY,
+            temperature=0
+        )
+
+        response = llm.invoke([
+            HumanMessage(content=[
+                {"type": "text", "text": prompt},
+                {
+                    "type": "image_url",
+                    "image_url": {"url": f"data:image/jpeg;base64,{b64_image}"}
+                }
+            ])
         ])
-        description = response.text.strip()
-        print(f"  [IMAGE] ✅ Gemini extracted {len(description)} characters")
+
+        description = response.content.strip()
+        print(f"  [IMAGE] ✅ OpenAI extracted {len(description)} characters")
         return description
 
     except Exception as e:
-        print(f"  [IMAGE] ❌ Gemini Vision failed for '{filename}': {e}")
+        print(f"  [IMAGE] ❌ OpenAI Vision failed for '{filename}': {e}")
         return f"Image content could not be extracted: {e}"
-
 
 def ingest_image(image_path: str) -> List[Document]:
     """
     Full image ingestion pipeline:
-    compress → Gemini Vision describes → semantic chunk → metadata
+    compress → OpenAI Vision describes → semantic chunk → metadata
 
     Args:
         image_path: Absolute path to image
@@ -490,7 +483,7 @@ def ingest_image(image_path: str) -> List[Document]:
     Returns:
         List of Document chunks representing the image
     """
-    filename    = os.path.basename(image_path)
+    filename = os.path.basename(image_path)
     print(f"\n[IMAGE] Ingesting: {filename}")
     description = describe_image_with_vision(image_path)
 
@@ -500,11 +493,11 @@ def ingest_image(image_path: str) -> List[Document]:
 
     # Apply semantic chunking to image description
     chunks = semantic_chunk_text(
-        text=           description,
-        source=         filename,
-        page_number=    0,
-        doc_type=       "image",
-        chunk_id_start= 0
+        text=description,
+        source=filename,
+        page_number=0,
+        doc_type="image",
+        chunk_id_start=0
     )
 
     # If semantic chunking produced nothing, wrap as single chunk
@@ -512,16 +505,15 @@ def ingest_image(image_path: str) -> List[Document]:
         chunks = [Document(
             page_content=description,
             metadata={
-                "source":     filename,
-                "type":       "image",
+                "source": filename,
+                "type": "image",
                 "image_name": filename,
-                "chunk_id":   0
+                "chunk_id": 0
             }
         )]
 
     print(f"[IMAGE] ✅ {len(chunks)} semantic chunk(s) produced")
     return chunks
-
 
 # ─────────────────────────────────────────────
 # Save Uploaded Files (Streamlit)
@@ -549,7 +541,6 @@ def save_uploaded_files(uploaded_files) -> List[str]:
 
     return saved_paths
 
-
 # ─────────────────────────────────────────────
 # Unified Ingestion Pipeline
 # ─────────────────────────────────────────────
@@ -567,7 +558,7 @@ def ingest_documents(file_paths: List[str]) -> List[Document]:
     all_documents = []
 
     for path in file_paths:
-        ext      = os.path.splitext(path)[1].lower()
+        ext = os.path.splitext(path)[1].lower()
         filename = os.path.basename(path)
 
         if ext not in SUPPORTED_EXTENSIONS:
@@ -589,7 +580,6 @@ def ingest_documents(file_paths: List[str]) -> List[Document]:
     print(f"\n✅ TOTAL SEMANTIC CHUNKS READY: {len(all_documents)}")
     return all_documents
 
-
 # ─────────────────────────────────────────────
 # Smoke Test
 # ─────────────────────────────────────────────
@@ -601,7 +591,7 @@ if __name__ == "__main__":
         sys.exit(1)
 
     file_paths = [p for p in sys.argv[1:] if os.path.exists(p)]
-    documents  = ingest_documents(file_paths)
+    documents = ingest_documents(file_paths)
 
     print("\n" + "="*60)
     print(f"TOTAL SEMANTIC CHUNKS: {len(documents)}")
@@ -609,10 +599,10 @@ if __name__ == "__main__":
 
     for i, doc in enumerate(documents[:5]):
         print(f"\n--- Chunk {i+1} ---")
-        print(f"Source      : {doc.metadata.get('source')}")
-        print(f"Type        : {doc.metadata.get('type')}")
-        print(f"Page        : {doc.metadata.get('page_number', 'N/A')}")
-        print(f"Chunk ID    : {doc.metadata.get('chunk_id')}")
-        print(f"Length      : {len(doc.page_content)} chars")
-        print(f"Preview     : {doc.page_content[:200]}...")
+        print(f"Source     : {doc.metadata.get('source')}")
+        print(f"Type       : {doc.metadata.get('type')}")
+        print(f"Page       : {doc.metadata.get('page_number', 'N/A')}")
+        print(f"Chunk ID   : {doc.metadata.get('chunk_id')}")
+        print(f"Length     : {len(doc.page_content)} chars")
+        print(f"Preview    : {doc.page_content[:200]}...")
         print(f"{'─'*60}")
