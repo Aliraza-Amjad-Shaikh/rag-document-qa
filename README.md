@@ -2,8 +2,7 @@
 
 ![Python](https://img.shields.io/badge/Python-3.10%2B-blue?style=for-the-badge&logo=python)
 ![LangChain](https://img.shields.io/badge/LangChain-0.2.1-green?style=for-the-badge)
-![Gemini](https://img.shields.io/badge/Google-Gemini%202.5%20Flash-4285F4?style=for-the-badge&logo=google)
-![HuggingFace](https://img.shields.io/badge/HuggingFace-Embeddings-FFD21E?style=for-the-badge&logo=huggingface)
+![OpenAI](https://img.shields.io/badge/OpenAI-GPT--4o--mini-412991?style=for-the-badge&logo=openai)
 ![FAISS](https://img.shields.io/badge/FAISS-Vector%20Store-orange?style=for-the-badge)
 ![Streamlit](https://img.shields.io/badge/Streamlit-1.35.0-FF4B4B?style=for-the-badge&logo=streamlit)
 ![License](https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge)
@@ -15,7 +14,7 @@ upload PDF documents and images, ask natural language questions, and receive
 accurate answers with **exact source citations**, **confidence scoring**, and a
 **smart "I don't know" fallback** to prevent hallucination.
 
-Powered by **Google Gemini 2.5 Flash** for LLM + Vision, **HuggingFace Inference API**
+Powered by **OpenAI gpt-4o-mini** for LLM + Vision, **OpenAI text-embedding-3-small**
 for embeddings, **LangChain Semantic Chunking** for intelligent document splitting,
 and **FAISS** for fast local vector search.
 
@@ -29,193 +28,144 @@ and **FAISS** for fast local vector search.
 |---|---|
 | ![Upload Screen](screenshots/upload.png) | ![QA Screen](screenshots/qa.png) |
 
-
 ---
 
-
 ## 🏗️ System Architecture
-
-```
 ┌──────────────────────────────────────────────────────────────────────┐
-│                         STREAMLIT FRONTEND                           │
-│                             app.py                                   │
-│                                                                      │
-│   Sidebar                          Main Chat Area                    │
-│   ├── File Uploader                ├── Chat History                  │
-│   ├── Process & Index Button       ├── User Bubbles                  │
-│   ├── System Status                ├── AI Answer Bubbles             │
-│   ├── Chunk Stats                  ├── Confidence Badges             │
-│   ├── Indexed Files List           ├── Source Citations Panel        │
-│   └── Clear & Start Over           └── Chat Input                    │
+│ STREAMLIT FRONTEND │
+│ app.py │
+│ │
+│ Sidebar Main Chat Area │
+│ ├── File Uploader ├── Chat History │
+│ ├── Process & Index Button ├── User Bubbles │
+│ ├── System Status ├── AI Answer Bubbles │
+│ ├── Chunk Stats ├── Confidence Badges │
+│ ├── Indexed Files List ├── Source Citations Panel │
+│ └── Clear & Start Over └── Chat Input │
 └──────────────┬───────────────────────────────┬──────────────────────┘
-               │                               │
-               ▼                               ▼
-┌──────────────────────────┐    ┌──────────────────────────────────────┐
-│   INGESTION PIPELINE     │    │           Q&A PIPELINE               │
-│     ingestion.py         │    │                                      │
-│                          │    │  1. User submits question            │
-│  ┌─────────────────────┐ │    │  2. Question embedded via HF API     │
-│  │ PDF Files           │ │    │  3. FAISS similarity search (top-6)  │
-│  │ └─ PyMuPDF          │ │    │  4. Normalize L2 scores → 0-1        │
-│  │    Multi-mode       │ │    │  5. Compute Top-2 avg confidence     │
-│  │    extraction       │ │    │  6. Route:                           │
-│  │    (blocks/text/    │ │    │     High/Medium → Gemini LLM         │
-│  │     dict modes)     │ │    │     Low         → "I don't know"     │
-│  └─────────────────────┘ │    │  7. Gemini generates grounded answer │
-│                          │    │  8. Extract + deduplicate sources    │
-│  ┌─────────────────────┐ │    │  9. Return answer + citations        │
-│  │ Image Files         │ │    └──────────────────────────────────────┘
-│  │ └─ Compress image   │ │
-│  │ └─ Gemini Vision    │ │    ┌──────────────────────────────────────┐
-│  │    describes        │ │    │       CONFIDENCE SCORING             │
-│  │    content          │ │    │                                      │
-│  └─────────────────────┘ │    │  Raw FAISS L2 distance               │
-│                          │    │       ↓                              │
-│  ┌─────────────────────┐ │    │  Normalize: 1 / (1 + distance)       │
-│  │ Text Cleaning       │ │    │       ↓                              │
-│  │ └─ Remove noise     │ │    │  Top-2 Average Score                 │
-│  │ └─ Fix ligatures    │ │    │       ↓                              │
-│  │ └─ Normalize chars  │ │    │  ┌─────────────────────────────┐    │
-│  └─────────────────────┘ │    │  │ Score ≥ 0.60 → 🟢 High     │    │
-│                          │    │  │ Score ≥ 0.40 → 🟡 Medium   │    │
-│  ┌─────────────────────┐ │    │  │ Score < 0.40 → 🔴 Low      │    │
-│  │ Semantic Chunking   │ │    │  └─────────────────────────────┘    │
-│  │ └─ HF Embeddings    │ │    └──────────────────────────────────────┘
-│  │    detect topic     │ │
-│  │    boundaries       │ │    ┌──────────────────────────────────────┐
-│  │ └─ Split at meaning │ │    │       VECTOR STORE                   │
-│  │    shifts           │ │    │       retrieval.py                   │
-│  │ └─ Recursive        │ │    │                                      │
-│  │    fallback for     │ │    │  HuggingFace Inference API           │
-│  │    oversized chunks │ │    │  sentence-transformers/              │
-│  └─────────────────────┘ │    │  all-MiniLM-L6-v2                   │
-│                          │    │       ↓                              │
-│  Metadata attached:      │    │  384-dimensional vectors             │
-│  ├── source (filename)   │    │       ↓                              │
-│  ├── type (pdf/image)    │    │  FAISS Local Index                   │
-│  ├── page_number         │    │  (Persisted to disk)                 │
-│  ├── image_name          │    │       ↓                              │
-│  └── chunk_id            │    │  vectorstore/faiss_index/            │
-└──────────────┬───────────┘    │  ├── index.faiss                     │
-               │                │  └── index.pkl                       │
-               └────────────────┴──────────────────────────────────────┘
-```
+│ │
+▼ ▼
+┌──────────────────────────┐ ┌──────────────────────────────────────┐
+│ INGESTION PIPELINE │ │ Q&A PIPELINE │
+│ ingestion.py │ │ │
+│ │ │ 1. User submits question │
+│ ┌─────────────────────┐ │ │ 2. Question embedded via OpenAI API │
+│ │ PDF Files │ │ │ 3. FAISS similarity search (top-6) │
+│ │ └─ PyMuPDF │ │ │ 4. Normalize L2 scores → 0-1 │
+│ │ Multi-mode │ │ │ 5. Compute Top-2 avg confidence │
+│ │ extraction │ │ │ 6. Route: │
+│ │ (blocks/text/ │ │ │ High/Medium → gpt-4o-mini LLM │
+│ │ dict modes) │ │ │ Low → "I don't know" │
+│ └─────────────────────┘ │ │ 7. gpt-4o-mini generates answer │
+│ │ │ 8. Extract + deduplicate sources │
+│ ┌─────────────────────┐ │ │ 9. Return answer + citations │
+│ │ Image Files │ │ └──────────────────────────────────────┘
+│ │ └─ Compress image │ │
+│ │ └─ gpt-4o-mini │ │ ┌──────────────────────────────────────┐
+│ │ Vision describes │ │ │ CONFIDENCE SCORING │
+│ │ content │ │ │ │
+│ └─────────────────────┘ │ │ Raw FAISS L2 distance │
+│ │ │ ↓ │
+│ ┌─────────────────────┐ │ │ Normalize: 1 / (1 + distance) │
+│ │ Text Cleaning │ │ │ ↓ │
+│ │ └─ Remove noise │ │ │ Top-2 Average Score │
+│ │ └─ Fix ligatures │ │ │ ↓ │
+│ │ └─ Normalize chars │ │ │ ┌─────────────────────────────┐ │
+│ └─────────────────────┘ │ │ │ Recalibrated post-migration │ │
+│ │ │ │ (see Configuration section) │ │
+│ ┌─────────────────────┐ │ │ └─────────────────────────────┘ │
+│ │ Semantic Chunking │ │ └──────────────────────────────────────┘
+│ │ └─ OpenAI Embeddings│ │
+│ │ detect topic │ │ ┌──────────────────────────────────────┐
+│ │ boundaries │ │ │ VECTOR STORE │
+│ │ └─ Split at meaning │ │ │ retrieval.py │
+│ │ shifts │ │ │ │
+│ │ └─ Recursive │ │ │ OpenAI Embeddings API │
+│ │ fallback for │ │ │ text-embedding-3-small │
+│ │ oversized chunks │ │ │ ↓ │
+│ └─────────────────────┘ │ │ 1536-dimensional vectors │
+│ │ │ ↓ │
+│ Metadata attached: │ │ FAISS Local Index │
+│ ├── source (filename) │ │ (Persisted to disk) │
+│ ├── type (pdf/image) │ │ ↓ │
+│ ├── page_number │ │ vectorstore/faiss_index/ │
+│ ├── image_name │ │ ├── index.faiss │
+│ └── chunk_id │ │ └── index.pkl │
+└──────────────┬───────────┘ └──────────────────────────────────────┘
+│ │
+└───────────────────────────────┘
+
+text
 
 ---
 
 ## 🔄 Complete Project Flow
-
-```
 STEP 1: USER UPLOADS FILES
-    User selects PDFs and/or images via Streamlit sidebar
-                    │
-                    ▼
-STEP 2: FILES SAVED TO DISK
-    save_uploaded_files() → saves to uploads/
-                    │
-                    ▼
-STEP 3: DOCUMENT INGESTION
-    For each file:
-    ├── PDF  → PyMuPDF multi-mode extraction
-    │          → Text cleaning
-    │          → Semantic chunking (HF embeddings detect topic boundaries)
-    │          → Recursive fallback for oversized chunks
-    │          → Metadata: {source, type, page_number, chunk_id}
-    │
-    └── Image → Compress to ≤3MB JPEG
-               → Gemini 2.5 Flash Vision API
-               → Faithful text description extracted
-               → Semantic chunking applied to description
-               → Metadata: {source, type, image_name, chunk_id}
-                    │
-                    ▼
-STEP 4: EMBEDDING + VECTOR STORE
-    All chunks → HuggingFace Inference API
-               → sentence-transformers/all-MiniLM-L6-v2
-               → 384-dim vectors
-               → FAISS index built
-               → Saved to vectorstore/faiss_index/ (persistent)
-                    │
-                    ▼
-STEP 5: USER ASKS A QUESTION
-    User types question in Streamlit chat input
-                    │
-                    ▼
-STEP 6: SEMANTIC RETRIEVAL
-    Question → HF Embeddings → query vector
-    FAISS similarity_search_with_score(query, k=6)
-    → Returns top-6 chunks + L2 distances
-                    │
-                    ▼
-STEP 7: CONFIDENCE SCORING
-    For each score:
-        normalized = 1 / (1 + L2_distance)
-    top2_avg = average of top 2 normalized scores
-    ├── top2_avg ≥ 0.60 → High   → proceed to LLM
-    ├── top2_avg ≥ 0.40 → Medium → proceed to LLM
-    └── top2_avg < 0.40 → Low    → trigger fallback (no LLM call)
-                    │
-                    ▼
-STEP 8: ANSWER GENERATION (if not fallback)
-    Retrieved chunks → format_context()
-    → Source labels attached: [Source N: file.pdf | Page X]
-    → Strict system prompt injected:
-       "Answer ONLY from context. Always cite sources.
-        Never fabricate. If absent, say I don't know."
-    → Gemini 2.5 Flash generates answer
-    → is_fallback_response() checks for genuine "I don't know"
-                    │
-                    ▼
-STEP 9: RESPONSE DISPLAYED
-    ├── Answer text (in chat bubble)
-    ├── Confidence badge (🟢 High / 🟡 Medium / 🔴 Low)
-    ├── Sources panel (filename + page number / image)
-    └── Fallback badge if triggered
-```
-=======
-## 🏗️ Architecture
-
-```mermaid
-┌─────────────────────────────────────────────────────────────┐
-│ USER INTERFACE │
-│ Streamlit (app.py) │
-└──────────────┬──────────────────────────┬───────────────────┘
-│ │
-▼ ▼
-┌─────────────────────────┐ ┌────────────────────────────────┐
-│ INGESTION PIPELINE │ │ Q&A PIPELINE │
-│ ingestion.py │ │ │
-│ │ │ 1. User asks question │
-│ PDF Files │ │ 2. Embed question │
-│ └─ PyMuPDF extracts │ │ 3. FAISS similarity search │
-│ text (multi-mode) │ │ 4. Compute confidence score │
-│ └─ Text cleaned │ │ 5. Route to LLM or fallback │
-│ └─ Chunked (1000 chars)│ │ 6. GPT-4o generates answer │
-│ │ │ 7. Return answer + citations │
-│ Image Files │ └────────────────────────────────┘
-│ └─ GPT-4o Vision │
-│ describes content │ ┌────────────────────────────────┐
-│ └─ Treated as text │ │ CONFIDENCE SCORING │
-│ │ │ │
-│ All chunks get: │ │ High (≥ 0.60) 🟢 │
-│ - source filename │ │ Medium (≥ 0.40) 🟡 │
-│ - page number │ │ Low (< 0.40) 🔴 │
-│ - chunk ID │ │ │
-│ - document type │ │ Low → "I don't know" │
-└──────────┬──────────────┘ └────────────────────────────────┘
+User selects PDFs and/or images via Streamlit sidebar
 │
 ▼
-┌─────────────────────────┐
-│ VECTOR STORE │
-│ retrieval.py │
-│ │
-│ OpenAI Embeddings │
-│ text-embedding-3-small │
-│ ↓ │
-│ FAISS Local Index │
-│ (Persistent on disk) │
-└─────────────────────────┘
-```
+STEP 2: FILES SAVED TO DISK
+save_uploaded_files() → saves to uploads/
+│
+▼
+STEP 3: DOCUMENT INGESTION
+For each file:
+├── PDF → PyMuPDF multi-mode extraction
+│ → Text cleaning
+│ → Semantic chunking (OpenAI embeddings detect topic boundaries)
+│ → Recursive fallback for oversized chunks
+│ → Metadata: {source, type, page_number, chunk_id}
+│
+└── Image → Compress to ≤3MB JPEG
+→ gpt-4o-mini Vision API (base64 data URL)
+→ Faithful text description extracted
+→ Semantic chunking applied to description
+→ Metadata: {source, type, image_name, chunk_id}
+│
+▼
+STEP 4: EMBEDDING + VECTOR STORE
+All chunks → OpenAI Embeddings API
+→ text-embedding-3-small
+→ 1536-dim vectors
+→ FAISS index built
+→ Saved to vectorstore/faiss_index/ (persistent)
+│
+▼
+STEP 5: USER ASKS A QUESTION
+User types question in Streamlit chat input
+│
+▼
+STEP 6: SEMANTIC RETRIEVAL
+Question → OpenAI Embeddings → query vector
+FAISS similarity_search_with_score(query, k=6)
+→ Returns top-6 chunks + L2 distances
+│
+▼
+STEP 7: CONFIDENCE SCORING
+For each score:
+normalized = 1 / (1 + L2_distance)
+top2_avg = average of top 2 normalized scores
+├── top2_avg ≥ CONFIDENCE_HIGH → High → proceed to LLM
+├── top2_avg ≥ CONFIDENCE_MEDIUM → Medium → proceed to LLM
+└── top2_avg < CONFIDENCE_MEDIUM → Low → trigger fallback (no LLM call)
+│
+▼
+STEP 8: ANSWER GENERATION (if not fallback)
+Retrieved chunks → format_context()
+→ Source labels attached: [Source N: file.pdf | Page X]
+→ Strict system prompt injected:
+"Answer ONLY from context. Always cite sources.
+Never fabricate. If absent, say I don't know."
+→ gpt-4o-mini generates answer
+→ is_fallback_response() checks for genuine "I don't know"
+│
+▼
+STEP 9: RESPONSE DISPLAYED
+├── Answer text (in chat bubble)
+├── Confidence badge (🟢 High / 🟡 Medium / 🔴 Low)
+├── Sources panel (filename + page number / image)
+└── Fallback badge if triggered
+
 
 
 ---
@@ -224,8 +174,8 @@ STEP 9: RESPONSE DISPLAYED
 
 ### Core RAG Features
 - 📄 **PDF Ingestion** — Multi-mode extraction (blocks, text, dict) handles columns, tables, complex layouts
-- 🖼️ **Image Understanding** — Gemini 2.5 Flash Vision reads text, charts, diagrams, and tables from images
-- 🧠 **Semantic Chunking** — HuggingFace embeddings detect topic boundaries for intelligent splitting
+- 🖼️ **Image Understanding** — gpt-4o-mini Vision reads text, charts, diagrams, and tables from images
+- 🧠 **Semantic Chunking** — OpenAI embeddings detect topic boundaries for intelligent splitting
 - 🔍 **FAISS Vector Search** — Local, persistent vector store with fast similarity search
 - 📊 **Confidence Scoring** — Every answer scored High / Medium / Low based on retrieval similarity
 - 🚫 **Hallucination Prevention** — Strict prompt engineering + Low confidence fallback
@@ -248,44 +198,43 @@ STEP 9: RESPONSE DISPLAYED
 | Component | Technology | Purpose |
 |---|---|---|
 | **Frontend** | Streamlit 1.35 | Chat UI, file upload, display |
-| **LLM** | Google Gemini 2.5 Flash | Answer generation |
-| **Vision** | Google Gemini 2.5 Flash | Image content extraction |
-| **Embeddings** | HuggingFace Inference API | Text vectorization |
-| **Embedding Model** | sentence-transformers/all-MiniLM-L6-v2 | 384-dim semantic vectors |
+| **LLM** | OpenAI gpt-4o-mini | Answer generation |
+| **Vision** | OpenAI gpt-4o-mini | Image content extraction |
+| **Embeddings** | OpenAI Embeddings API | Text vectorization |
+| **Embedding Model** | text-embedding-3-small | 1536-dim semantic vectors |
 | **Semantic Chunking** | LangChain SemanticChunker | Topic-aware document splitting |
 | **Vector Store** | FAISS (local) | Fast similarity search |
 | **PDF Extraction** | PyMuPDF (fitz) | Multi-mode text extraction |
 | **Image Processing** | Pillow | Compression before Vision API |
-| **RAG Framework** | LangChain 0.2 | Pipeline orchestration |
+| **RAG Framework** | LangChain 0.2 + langchain-openai | Pipeline orchestration |
 | **Environment** | python-dotenv | Secure API key management |
 
 ---
 
 ## 📁 Project Structure
-
-```
 rag-document-qa/
 │
-├── app.py              # Streamlit frontend — dark UI, chat interface, sidebar
-├── ingestion.py        # Document ingestion — PDF extraction + image vision + semantic chunking
-├── retrieval.py        # Vector store — HF embeddings, FAISS, confidence scoring
-├── generation.py       # Answer generation — Gemini LLM, prompt engineering, citations
-├── config.py           # Central config — paths, models, thresholds, chunking params
+├── app.py # Streamlit frontend — dark UI, chat interface, sidebar
+├── ingestion.py # Document ingestion — PDF extraction + OpenAI vision + semantic chunking
+├── retrieval.py # Vector store — OpenAI embeddings, FAISS, confidence scoring
+├── generation.py # Answer generation — OpenAI LLM, prompt engineering, citations
+├── config.py # Central config — paths, models, thresholds, chunking params
 │
-├── uploads/            # Temporary uploaded files (git-ignored)
-├── vectorstore/        # Persistent FAISS index (git-ignored)
-│   └── faiss_index/
-│       ├── index.faiss
-│       └── index.pkl
+├── uploads/ # Temporary uploaded files (git-ignored)
+├── vectorstore/ # Persistent FAISS index (git-ignored)
+│ └── faiss_index/
+│ ├── index.faiss
+│ └── index.pkl
 │
 ├── utils/
-│   └── __init__.py
+│ └── _init_.py
 │
-├── .env                # API keys (git-ignored — never commit)
-├── .gitignore          # Git ignore rules
-├── requirements.txt    # All Python dependencies
-└── README.md           # This file
-```
+├── .env # API keys (git-ignored — never commit)
+├── .gitignore # Git ignore rules
+├── requirements.txt # All Python dependencies
+└── README.md # This file
+
+
 
 ---
 
@@ -293,8 +242,7 @@ rag-document-qa/
 
 ### Prerequisites
 - Python 3.10 or higher
-- A Google AI Studio API key (Gemini)
-- A HuggingFace API token
+- An OpenAI API key
 - Git installed
 
 ### 1. Clone the Repository
@@ -322,28 +270,21 @@ venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-### 4. Get Your API Keys
+### 4. Get Your API Key
 
-**Google Gemini API Key (Free):**
-1. Go to [https://aistudio.google.com/apikey](https://aistudio.google.com/apikey)
-2. Click **Create API Key**
-3. Copy the key
-
-**HuggingFace API Token (Free):**
-1. Go to [https://huggingface.co/settings/tokens](https://huggingface.co/settings/tokens)
-2. Click **New Token**
-3. Select **Read** access
-4. Copy the token
+**OpenAI API Key:**
+1. Go to [https://platform.openai.com/api-keys](https://platform.openai.com/api-keys)
+2. Click **Create new secret key**
+3. Copy the key (starts with `sk-`)
+4. Note: OpenAI API usage is billed — gpt-4o-mini and text-embedding-3-small are both low-cost, but this is not a free tier like the old HuggingFace Inference API was.
 
 ### 5. Configure Environment
 
 Create a `.env` file in the project root:
 
 ```env
-GOOGLE_API_KEY=your-gemini-api-key-here
-HUGGINGFACEHUB_API_TOKEN=your-huggingface-token-here
+OPENAI_API_KEY=your-openai-api-key-here
 ```
-
 
 ### 6. Run the Application
 
@@ -385,9 +326,9 @@ All settings are centralized in `config.py`:
 
 | Setting | Value | Description |
 |---|---|---|
-| `VISION_MODEL` | `gemini-2.5-flash` | Gemini model for image understanding |
-| `CHAT_MODEL` | `gemini-2.5-flash` | Gemini model for answer generation |
-| `EMBEDDING_MODEL` | `sentence-transformers/all-MiniLM-L6-v2` | HF model for vector embeddings |
+| `VISION_MODEL` | `gpt-4o-mini` | OpenAI model for image understanding |
+| `CHAT_MODEL` | `gpt-4o-mini` | OpenAI model for answer generation |
+| `EMBEDDING_MODEL` | `text-embedding-3-small` | OpenAI model for vector embeddings (1536-dim) |
 
 ### Chunking Settings
 
@@ -405,63 +346,66 @@ All settings are centralized in `config.py`:
 | Setting | Default | Description |
 |---|---|---|
 | `TOP_K_RESULTS` | `6` | Number of chunks retrieved per query |
-| `CONFIDENCE_HIGH` | `0.60` | Threshold for High confidence |
-| `CONFIDENCE_MEDIUM` | `0.40` | Threshold for Medium confidence |
+| `CONFIDENCE_HIGH` | `0.60` | Threshold for High confidence — **⚠️ post-migration, re-tune this** |
+| `CONFIDENCE_MEDIUM` | `0.40` | Threshold for Medium confidence — **⚠️ post-migration, re-tune this** |
+
+> **⚠️ Migration note:** These thresholds were originally calibrated for HuggingFace's `all-MiniLM-L6-v2` similarity distribution. After switching to OpenAI's `text-embedding-3-small`, the raw similarity scores cluster differently — even irrelevant queries can score 0.30–0.40+, narrowing the separation between relevant and irrelevant results. Rebuild the FAISS index, run test queries, log the `top2_avg` scores, and adjust these two constants before trusting confidence labels in production.
 
 ---
 
 ## 🔬 How Semantic Chunking Works
 
 Traditional character-based chunking splits text every N characters regardless of meaning:
-
-```
 ❌ Character Chunking:
 "Machine learning is a subset of AI. It learns from da" ← cut mid-word
 "ta automatically without being explicitly programmed."
-```
+
+
 
 Semantic chunking uses embeddings to detect where the **meaning changes**:
-
-```
 ✅ Semantic Chunking:
 Chunk 1: "Machine learning is a subset of AI that learns
-          from data automatically."           ← complete thought
+from data automatically." ← complete thought
 
 Chunk 2: "Supervised learning uses labeled input-output
-          pairs to train a model."            ← new topic, new chunk
-```
+pairs to train a model." ← new topic, new chunk
+
+
 
 **Process:**
-1. Every sentence is embedded into a vector
+1. Every sentence is embedded into a vector (via OpenAI Embeddings API)
 2. Cosine similarity measured between consecutive sentences
 3. Large similarity drops = topic boundary = split point
 4. Oversized chunks are split further with recursive character splitting
 5. Undersized chunks (< 50 chars) are dropped as noise
 
+> **Cost note:** Since semantic chunking embeds every sentence via a paid API call, large PDFs will incur more embedding cost and latency than under the free HuggingFace Inference tier used previously.
+
 ---
 
 ## 🔬 How Confidence Scoring Works
-
-```
 FAISS returns L2 distance (lower = more similar)
-              ↓
+↓
 Normalize: similarity = 1 / (1 + L2_distance)
-              ↓
+↓
 Take average of top-2 scores (more stable than best-only)
-              ↓
+↓
 ┌────────────────────────────────────────────┐
-│ top2_avg ≥ 0.60 → 🟢 High Confidence      │
-│                   → LLM generates answer   │
-│                                            │
-│ top2_avg ≥ 0.40 → 🟡 Medium Confidence    │
-│                   → LLM generates answer   │
-│                                            │
-│ top2_avg < 0.40 → 🔴 Low Confidence       │
-│                   → Fallback triggered     │
-│                   → LLM NOT called         │
-│                   → Zero API cost          │
+│ top2_avg ≥ CONFIDENCE_HIGH → 🟢 High │
+│ → LLM generates answer │
+│ │
+│ top2_avg ≥ CONFIDENCE_MEDIUM → 🟡 Medium │
+│ → LLM generates answer │
+│ │
+│ top2_avg < CONFIDENCE_MEDIUM → 🔴 Low │
+│ → Fallback triggered │
+│ → LLM NOT called │
+│ → Zero API cost │
 └────────────────────────────────────────────┘
-```
+
+
+
+Threshold values shown are defaults in `config.py` (`CONFIDENCE_HIGH = 0.60`, `CONFIDENCE_MEDIUM = 0.40`) and require re-tuning after the OpenAI embeddings migration — see Configuration Reference above.
 
 ---
 
@@ -470,34 +414,33 @@ Take average of top-2 scores (more stable than best-only)
 | Limitation | Details |
 |---|---|
 | **Scanned PDFs** | PDFs that are scanned images cannot be processed by PyMuPDF. Use image upload instead. |
-| **Large Documents** | 100+ page PDFs take significant time to embed. Semantic chunking adds extra HF API calls. |
+| **Large Documents** | 100+ page PDFs take significant time and cost to embed. Semantic chunking adds extra OpenAI Embeddings API calls per sentence. |
 | **No Conversation Memory** | Each question answered independently — no multi-turn context. |
 | **No Document Summary** | Cannot summarize an entire document — answers are chunk-level only. |
 | **Image Size Limit** | Images compressed to ≤3MB before Vision API. Very small or blurry images may produce poor descriptions. |
 | **English Primary** | Best performance on English documents. Other languages may work but are untested. |
-| **API Dependency** | Requires active Google and HuggingFace API keys. Offline use not supported. |
-| **HF Rate Limits** | Free HuggingFace Inference API has rate limits. Large documents may hit these limits. |
+| **API Dependency** | Requires an active OpenAI API key with available billing/credits. Offline use not supported. |
+| **API Costs** | Unlike the previous free-tier HuggingFace embeddings, all embedding, chat, and vision calls now incur OpenAI usage costs. |
+| **Confidence Threshold Drift** | Thresholds must be re-tuned post-migration since OpenAI embedding similarity distributions differ from MiniLM's. |
 
 ---
 
 ## 🔮 Planned Improvements
 
-- [ ] Conversation memory (multi-turn Q&A with context window)
-- [ ] Document summarization (budget-aware map-reduce)
-- [ ] DOCX / PPTX / CSV file format support
+- [ ] Conversation memory (sliding window, last 5 turns)
+- [ ] Document summarization (budget-aware, top-N chunks instead of full map-reduce)
+- [ ] DOCX / PPTX / CSV / Excel / TXT file format support
 - [ ] Scanned PDF support via Tesseract OCR
 - [ ] Chat history export (PDF / TXT)
 - [ ] Document preview in sidebar
-- [ ] Multi-session persistence
-- [ ] Streamlit Cloud deployment
+- [ ] Multi-session persistence (save session state to JSON)
+- [ ] Streamlit Cloud deployment (secrets-based API key handling)
 - [ ] Docker containerization
 - [ ] HyDE (Hypothetical Document Embeddings) for better retrieval
 
 ---
 
 ## 📄 License
-
-```
 MIT License
 
 Copyright (c) 2024 Aliraza Amjad Shaikh
@@ -515,24 +458,23 @@ copies or substantial portions of the Software.
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
-```
+
+text
 
 ---
 
 ## 🙏 Acknowledgements
 
 - [LangChain](https://github.com/langchain-ai/langchain) — RAG orchestration and semantic chunking
-- [Google Gemini](https://ai.google.dev/) — LLM and Vision capabilities
-- [HuggingFace](https://huggingface.co/) — Inference API and embedding models
+- [OpenAI](https://platform.openai.com/) — LLM, Vision, and Embeddings API
 - [FAISS](https://github.com/facebookresearch/faiss) — Facebook AI Similarity Search
 - [PyMuPDF](https://pymupdf.readthedocs.io/) — PDF text extraction
 - [Streamlit](https://streamlit.io) — Frontend framework
-- [Sentence Transformers](https://www.sbert.net/) — all-MiniLM-L6-v2 embedding model
 
 ---
 
 <p align="center">
-  Built with ❤️ by Aliraza Amjad Shaikh using LangChain · Google Gemini · HuggingFace · FAISS · Streamlit
+  Built with ❤️ by Aliraza Amjad Shaikh using LangChain · OpenAI · FAISS · Streamlit
 </p>
 <p align="center">
   <a href="https://github.com/Aliraza-Amjad-Shaikh/rag-document-qa">
