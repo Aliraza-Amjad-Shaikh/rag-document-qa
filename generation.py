@@ -1,26 +1,24 @@
-from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_openai import ChatOpenAI
 from langchain_core.documents import Document
 from langchain_core.messages import HumanMessage, SystemMessage
 from typing import List
 
-from config import GOOGLE_API_KEY, CHAT_MODEL
-
+from config import OPENAI_API_KEY, CHAT_MODEL
 
 # ─────────────────────────────────────────────
-# Initialize Gemini LLM
+# Initialize OpenAI LLM
 # ─────────────────────────────────────────────
 
-def get_llm() -> ChatGoogleGenerativeAI:
+def get_llm() -> ChatOpenAI:
     """
-    Initialize and return Gemini chat model via LangChain.
+    Initialize and return OpenAI chat model via LangChain.
     """
-    return ChatGoogleGenerativeAI(
+    return ChatOpenAI(
         model=CHAT_MODEL,
-        google_api_key=GOOGLE_API_KEY,
+        openai_api_key=OPENAI_API_KEY,
         temperature=0,
-        max_output_tokens=1500
+        max_tokens=1500
     )
-
 
 # ─────────────────────────────────────────────
 # Format Context
@@ -33,14 +31,14 @@ def format_context(chunks: List[Document]) -> str:
     context_parts = []
 
     for i, chunk in enumerate(chunks):
-        source   = chunk.metadata.get("source", "Unknown")
+        source = chunk.metadata.get("source", "Unknown")
         doc_type = chunk.metadata.get("type", "unknown")
 
         if doc_type == "pdf":
-            page         = chunk.metadata.get("page_number", "?")
+            page = chunk.metadata.get("page_number", "?")
             source_label = f"[Source {i+1}: {source} | Page {page}]"
         elif doc_type == "image":
-            image_name   = chunk.metadata.get("image_name", source)
+            image_name = chunk.metadata.get("image_name", source)
             source_label = f"[Source {i+1}: {image_name} | Image]"
         else:
             source_label = f"[Source {i+1}: {source}]"
@@ -51,14 +49,13 @@ def format_context(chunks: List[Document]) -> str:
 
     return "\n\n".join(context_parts)
 
-
 # ─────────────────────────────────────────────
 # Build Prompt
 # ─────────────────────────────────────────────
 
 def build_prompt(question: str, context: str) -> list:
     """
-    Build LangChain messages list for Gemini.
+    Build LangChain messages list for OpenAI.
     """
     system_content = """You are a precise and trustworthy document assistant.
 
@@ -67,7 +64,7 @@ Your ONLY job is to answer questions using the document context provided.
 STRICT RULES:
 1. Answer ONLY using information from the provided context.
 2. ALWAYS cite your source using this format:
-   - For PDFs:   (Source: filename.pdf | Page X)
+   - For PDFs: (Source: filename.pdf | Page X)
    - For Images: (Source: imagename.png | Image)
 3. If the answer is clearly present in the context, you MUST answer it fully.
 4. Only say exactly "I don't know based on the provided documents." if the
@@ -99,7 +96,6 @@ ANSWER:"""
         HumanMessage(content=user_content)
     ]
 
-
 # ─────────────────────────────────────────────
 # Fallback Detection
 # ─────────────────────────────────────────────
@@ -120,7 +116,6 @@ def is_fallback_response(answer: str) -> bool:
     ]
     return any(phrase in answer_lower for phrase in fallback_phrases)
 
-
 # ─────────────────────────────────────────────
 # Extract Sources
 # ─────────────────────────────────────────────
@@ -129,21 +124,21 @@ def extract_sources(chunks: List[Document]) -> list:
     """
     Extract unique source citations from chunks.
     """
-    seen    = set()
+    seen = set()
     sources = []
 
     for chunk in chunks:
         doc_type = chunk.metadata.get("type", "unknown")
-        source   = chunk.metadata.get("source", "Unknown")
+        source = chunk.metadata.get("source", "Unknown")
 
         if doc_type == "pdf":
             page = chunk.metadata.get("page_number", "?")
-            key  = f"{source}_page_{page}"
+            key = f"{source}_page_{page}"
             if key not in seen:
                 seen.add(key)
                 sources.append({
-                    "source":      source,
-                    "type":        "pdf",
+                    "source": source,
+                    "type": "pdf",
                     "page_number": page
                 })
 
@@ -152,69 +147,67 @@ def extract_sources(chunks: List[Document]) -> list:
             if key not in seen:
                 seen.add(key)
                 sources.append({
-                    "source":     source,
-                    "type":       "image",
+                    "source": source,
+                    "type": "image",
                     "image_name": chunk.metadata.get("image_name", source)
                 })
 
     return sources
-
 
 # ─────────────────────────────────────────────
 # Generate Answer
 # ─────────────────────────────────────────────
 
 def generate_answer(
-    question:      str,
-    chunks:        List[Document],
-    confidence:    str,
+    question: str,
+    chunks: List[Document],
+    confidence: str,
     should_answer: bool
 ) -> dict:
     """
-    Generate a grounded answer using Gemini.
+    Generate a grounded answer using OpenAI.
     Triggers fallback if confidence is Low or no chunks found.
     """
     # Hard fallback
     if not should_answer or not chunks:
         print(f"[GENERATION] Fallback — should_answer={should_answer}, chunks={len(chunks)}")
         return {
-            "answer":     "I don't know based on the provided documents.",
+            "answer": "I don't know based on the provided documents.",
             "confidence": confidence,
-            "sources":    [],
-            "fallback":   True
+            "sources": [],
+            "fallback": True
         }
 
-    context  = format_context(chunks)
+    context = format_context(chunks)
     messages = build_prompt(question, context)
 
-    print(f"[GENERATION] Sending {len(chunks)} chunks to Gemini...")
+    print(f"[GENERATION] Sending {len(chunks)} chunks to OpenAI...")
     print(f"[GENERATION] Context: {len(context)} characters")
 
     try:
-        llm      = get_llm()
+        llm = get_llm()
         response = llm.invoke(messages)
-        answer   = response.content.strip()
+        answer = response.content.strip()
         print(f"[GENERATION] ✅ Answer received: {answer[:100]}...")
 
     except Exception as e:
-        print(f"[ERROR] Gemini generation failed: {e}")
+        print(f"[ERROR] OpenAI generation failed: {e}")
         return {
-            "answer":     "I don't know based on the provided documents.",
+            "answer": "I don't know based on the provided documents.",
             "confidence": "Low",
-            "sources":    [],
-            "fallback":   True
+            "sources": [],
+            "fallback": True
         }
 
-    sources  = extract_sources(chunks)
+    sources = extract_sources(chunks)
     fallback = is_fallback_response(answer)
 
     return {
-        "answer":     answer,
+        "answer": answer,
         "confidence": confidence,
-        "sources":    sources,
-        "fallback":   fallback
+        "sources": sources,
+        "fallback": fallback
     }
-
 
 # ─────────────────────────────────────────────
 # Smoke Test
@@ -229,13 +222,13 @@ if __name__ == "__main__":
         sys.exit(1)
 
     file_paths = sys.argv[1:]
-    vs         = get_or_build_vectorstore()
+    vs = get_or_build_vectorstore()
 
     if not vs:
         print("🔄 Building vector store...")
         docs = ingest_documents(file_paths)
         from retrieval import build_vectorstore, save_vectorstore
-        vs   = build_vectorstore(docs)
+        vs = build_vectorstore(docs)
         save_vectorstore(vs)
 
     test_queries = [
@@ -247,12 +240,12 @@ if __name__ == "__main__":
         print(f"\n{'─'*60}")
         print(f"❓ QUESTION: {query}")
         retrieval_result = retrieve_relevant_chunks(query, vs)
-        result           = generate_answer(
+        result = generate_answer(
             question=query,
             chunks=retrieval_result["chunks"],
             confidence=retrieval_result["confidence"],
             should_answer=retrieval_result["should_answer"]
         )
-        print(f"💬 ANSWER    : {result['answer']}")
+        print(f"💬 ANSWER     : {result['answer']}")
         print(f"📊 CONFIDENCE: {result['confidence']}")
         print(f"🔁 FALLBACK  : {result['fallback']}")
