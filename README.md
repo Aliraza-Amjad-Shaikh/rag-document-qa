@@ -349,7 +349,7 @@ All settings are centralized in `config.py`:
 | `CONFIDENCE_HIGH` | `0.60` | Threshold for High confidence — **⚠️ post-migration, re-tune this** |
 | `CONFIDENCE_MEDIUM` | `0.40` | Threshold for Medium confidence — **⚠️ post-migration, re-tune this** |
 
-> **⚠️ Migration note:** These thresholds were originally calibrated for HuggingFace's `all-MiniLM-L6-v2` similarity distribution. After switching to OpenAI's `text-embedding-3-small`, the raw similarity scores cluster differently — even irrelevant queries can score 0.30–0.40+, narrowing the separation between relevant and irrelevant results. Rebuild the FAISS index, run test queries, log the `top2_avg` scores, and adjust these two constants before trusting confidence labels in production.
+> **⚠️ Updated Migration note:** New thresholds are calibrated which are suitable for OpenAI's `text-embedding-3-small` model. Also disabled the feature of Query Rewriting which not only worsened the retrieval but increased API cost. Rebuild the FAISS index, run test queries, log the `top2_avg` scores, and adjust these two constants before trusting confidence labels in production. 
 
 ---
 
