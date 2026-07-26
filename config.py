@@ -50,8 +50,8 @@ TOP_K_RESULTS = 6
 # NOTE: These were calibrated for MiniLM (384-dim) similarity distribution.
 # Must be re-tuned after switching to OpenAI text-embedding-3-small (1536-dim).
 # Rebuild the FAISS index, run sample queries, log normalized scores, then adjust.
-CONFIDENCE_HIGH = 0.60
-CONFIDENCE_MEDIUM = 0.40
+CONFIDENCE_HIGH = 0.45
+CONFIDENCE_MEDIUM = 0.55
 
 # ─────────────────────────────────────────────
 # Supported File Types
@@ -63,7 +63,7 @@ SUPPORTED_EXTENSIONS = PDF_EXTENSIONS + IMAGE_EXTENSIONS
 # ─────────────────────────────────────────────
 # Query Rewriting (HyDE-lite)
 # ─────────────────────────────────────────────
-ENABLE_QUERY_REWRITING = True  # Toggle to disable without code changes
+ENABLE_QUERY_REWRITING = False  # Toggle to disable without code changes
 QUERY_REWRITE_TEMPERATURE = 0  # Deterministic rewrites
 
 # ─────────────────────────────────────────────
