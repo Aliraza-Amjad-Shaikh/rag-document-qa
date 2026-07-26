@@ -232,8 +232,9 @@ if __name__ == "__main__":
         save_vectorstore(vs)
 
     test_queries = [
-        "What is Machine Learning?",
-        "What is the weather like today?",
+    "What is Overfitting?",
+    "What is Supervised Learning?",
+    "What is the weather like today?",
     ]
 
     for query in test_queries:
