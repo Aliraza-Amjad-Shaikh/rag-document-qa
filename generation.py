@@ -235,6 +235,7 @@ if __name__ == "__main__":
     "What is Overfitting?",
     "What is Supervised Learning?",
     "What is the weather like today?",
+    "What is the Eligbility Criteria for placement?"
     ]
 
     for query in test_queries:

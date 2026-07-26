@@ -64,7 +64,7 @@ SUPPORTED_EXTENSIONS = PDF_EXTENSIONS + IMAGE_EXTENSIONS
 # Query Rewriting (HyDE-lite)
 # ─────────────────────────────────────────────
 ENABLE_QUERY_REWRITING = False  # Toggle to disable without code changes
-QUERY_REWRITE_TEMPERATURE = 0  # Deterministic rewrites
+QUERY_REWRITE_TEMPERATURE = 0.0  # Deterministic rewrites
 
 # ─────────────────────────────────────────────
 # FAISS Index Name
