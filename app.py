@@ -6,7 +6,7 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from config import UPLOAD_DIR
 from ingestion import save_uploaded_files, ingest_documents
-from retrieval import get_or_build_vectorstore, retrieve_relevant_chunks, clear_vectorstore
+from retrieval import get_or_build_vectorstore, add_documents_to_vectorstore, retrieve_relevant_chunks, clear_vectorstore
 from generation import generate_answer
 
 st.set_page_config(
