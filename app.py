@@ -185,12 +185,15 @@ with st.sidebar:
                     vs = add_documents_to_vectorstore(documents=docs)
 
                 if vs:
-                    st.session_state.vectorstore   = vs
-                    st.session_state.is_ready      = True
-                    st.session_state.indexed_files = [f.name for f in uploaded_files]
-                    st.session_state.total_chunks  = len(docs)
-                    st.session_state.pdf_chunks    = pdf_chunks
-                    st.session_state.image_chunks  = image_chunks
+                    st.session_state.vectorstore = vs
+                    st.session_state.is_ready = True
+
+                    new_files = [f.name for f in uploaded_files if f.name not in st.session_state.indexed_files]
+                    st.session_state.indexed_files.extend(new_files)
+
+                    st.session_state.total_chunks += len(docs)
+                    st.session_state.pdf_chunks += pdf_chunks
+                    st.session_state.image_chunks += image_chunks
                     st.success(f"✅ {len(docs)} chunks indexed!")
                     st.rerun()
                 else:
