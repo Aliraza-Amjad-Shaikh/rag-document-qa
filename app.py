@@ -182,7 +182,7 @@ with st.sidebar:
                 image_chunks = len([d for d in docs if d.metadata.get("type") == "image"])
 
                 with st.spinner("Building vector store..."):
-                    vs = get_or_build_vectorstore(documents=docs)
+                    vs = add_documents_to_vectorstore(documents=docs)
 
                 if vs:
                     st.session_state.vectorstore   = vs
