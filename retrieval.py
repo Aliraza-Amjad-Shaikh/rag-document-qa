@@ -210,6 +210,24 @@ def get_or_build_vectorstore(documents: List[Document] = None) -> FAISS | None:
     print("[VECTORSTORE] No index found and no documents provided.")
     return None
 
+def add_documents_to_vectorstore(documents: List[Document]) -> FAISS:
+    """
+    Add new documents to an existing index if one exists.
+    Otherwise, build a fresh index. Never deletes existing data.
+    """
+    existing_vs = load_vectorstore()
+    if existing_vs:
+        print(f"[VECTORSTORE] Adding {len(documents)} new chunks to existing index...")
+        existing_vs.add_documents(documents)
+        save_vectorstore(existing_vs)
+        print("[VECTORSTORE] ✅ Merge complete.")
+        return existing_vs
+
+    print("[VECTORSTORE] No existing index — building fresh.")
+    vectorstore = build_vectorstore(documents)
+    save_vectorstore(vectorstore)
+    return vectorstore
+
 # ─────────────────────────────────────────────
 # Clear Vector Store
 # ─────────────────────────────────────────────
