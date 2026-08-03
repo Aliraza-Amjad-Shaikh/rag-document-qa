@@ -202,27 +202,30 @@ top2_avg = average of top 2 normalized scores
 ---
 
 ## 📁 Project Structure
+
+```
 rag-document-qa/
 │
-├── app.py # Streamlit frontend — dark UI, chat interface, sidebar
-├── ingestion.py # Document ingestion — PDF extraction + OpenAI vision + semantic chunking
-├── retrieval.py # Vector store — OpenAI embeddings, FAISS, confidence scoring
-├── generation.py # Answer generation — OpenAI LLM, prompt engineering, citations
-├── config.py # Central config — paths, models, thresholds, chunking params
+├── app.py                  # Streamlit frontend — dark UI, chat interface, sidebar
+├── ingestion.py             # Document ingestion — PDF extraction + OpenAI vision + semantic chunking
+├── retrieval.py             # Vector store — OpenAI embeddings, FAISS, confidence scoring
+├── generation.py            # Answer generation — OpenAI LLM, prompt engineering, citations
+├── config.py                # Central config — paths, models, thresholds, chunking params
 │
-├── uploads/ # Temporary uploaded files (git-ignored)
-├── vectorstore/ # Persistent FAISS index (git-ignored)
-│ └── faiss_index/
-│ ├── index.faiss
-│ └── index.pkl
+├── uploads/                 # Temporary uploaded files (git-ignored)
+├── vectorstore/             # Persistent FAISS index (git-ignored)
+│   └── faiss_index/
+│       ├── index.faiss
+│       └── index.pkl
 │
 ├── utils/
-│ └── _init_.py
+│   └── __init__.py
 │
-├── .env # API keys (git-ignored — never commit)
-├── .gitignore # Git ignore rules
-├── requirements.txt # All Python dependencies
-└── README.md # This file
+├── .env                     # API keys (git-ignored — never commit)
+├── .gitignore                # Git ignore rules
+├── requirements.txt         # All Python dependencies
+└── README.md                 # This file
+```
 
 
 
@@ -374,6 +377,7 @@ pairs to train a model." ← new topic, new chunk
 ---
 
 ## 🔬 How Confidence Scoring Works
+
 FAISS returns L2 distance (lower = more similar)
 ↓
 Normalize: similarity = 1 / (1 + L2_distance)
@@ -393,9 +397,7 @@ Take average of top-2 scores (more stable than best-only)
 │ → Zero API cost │
 └────────────────────────────────────────────┘
 
-
-
-Threshold values shown are defaults in `config.py` (`CONFIDENCE_HIGH = 0.60`, `CONFIDENCE_MEDIUM = 0.40`) and require re-tuning after the OpenAI embeddings migration — see Configuration Reference above.
+Threshold values shown are defaults in `config.py` (`CONFIDENCE_HIGH = 0.60`, `CONFIDENCE_MEDIUM = 0.40`) and require re-tuning after the OpenAI embeddings migration — see [Configuration Reference](#️-configuration-reference) above.
 
 ---
 
