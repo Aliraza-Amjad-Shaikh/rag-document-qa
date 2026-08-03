@@ -203,11 +203,14 @@ with st.sidebar:
                     st.session_state.is_ready = True
 
                     new_files = [f.name for f in uploaded_files if f.name not in st.session_state.indexed_files]
+                    replaced_files = [f.name for f in uploaded_files if f.name in st.session_state.indexed_files]
+
                     st.session_state.indexed_files.extend(new_files)
 
-                    st.session_state.total_chunks += len(docs)
-                    st.session_state.pdf_chunks += pdf_chunks
-                    st.session_state.image_chunks += image_chunks
+                    new_docs = [d for d in docs if d.metadata.get("source") in new_files]
+                    st.session_state.total_chunks += len(new_docs)
+                    st.session_state.pdf_chunks += len([d for d in new_docs if d.metadata.get("type") == "pdf"])
+                    st.session_state.image_chunks += len([d for d in new_docs if d.metadata.get("type") == "image"])
                     st.success(f"✅ {len(docs)} chunks indexed!")
                     st.rerun()
                 else:
