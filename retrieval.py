@@ -228,6 +228,24 @@ def add_documents_to_vectorstore(documents: List[Document]) -> FAISS:
     save_vectorstore(vectorstore)
     return vectorstore
 
+def remove_source_from_vectorstore(vectorstore: FAISS, source_filename: str) -> FAISS:
+    """
+    Remove all chunks belonging to a specific filename from the index.
+    Used when a file with the same name is re-uploaded.
+    """
+    ids_to_delete = [
+        doc_id for doc_id, doc in vectorstore.docstore._dict.items()
+        if doc.metadata.get("source") == source_filename
+    ]
+
+    if ids_to_delete:
+        vectorstore.delete(ids_to_delete)
+        print(f"[VECTORSTORE] 🗑️ Removed {len(ids_to_delete)} old chunks for '{source_filename}'")
+    else:
+        print(f"[VECTORSTORE] No existing chunks found for '{source_filename}'")
+
+    return vectorstore
+
 # ─────────────────────────────────────────────
 # Clear Vector Store
 # ─────────────────────────────────────────────
