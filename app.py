@@ -6,7 +6,14 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from config import UPLOAD_DIR
 from ingestion import save_uploaded_files, ingest_documents
-from retrieval import get_or_build_vectorstore, add_documents_to_vectorstore, retrieve_relevant_chunks, clear_vectorstore
+from retrieval import (
+    get_or_build_vectorstore,
+    add_documents_to_vectorstore,
+    remove_source_from_vectorstore,
+    save_vectorstore,
+    retrieve_relevant_chunks,
+    clear_vectorstore
+)
 from generation import generate_answer
 
 st.set_page_config(
@@ -173,6 +180,13 @@ with st.sidebar:
         if st.button("🚀 Process & Index", type="primary"):
             with st.spinner("Saving files..."):
                 saved_paths = save_uploaded_files(uploaded_files)
+
+            existing_vs = get_or_build_vectorstore()
+            if existing_vs:
+                for f in uploaded_files:
+                    if f.name in st.session_state.indexed_files:
+                        existing_vs = remove_source_from_vectorstore(existing_vs, f.name)
+                    save_vectorstore(existing_vs)
 
             with st.spinner("Extracting content..."):
                 docs = ingest_documents(saved_paths)
