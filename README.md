@@ -31,140 +31,130 @@ and **FAISS** for fast local vector search.
 ---
 
 ## 🏗️ System Architecture
-┌──────────────────────────────────────────────────────────────────────┐
-│ STREAMLIT FRONTEND │
-│ app.py │
-│ │
-│ Sidebar Main Chat Area │
-│ ├── File Uploader ├── Chat History │
-│ ├── Process & Index Button ├── User Bubbles │
-│ ├── System Status ├── AI Answer Bubbles │
-│ ├── Chunk Stats ├── Confidence Badges │
-│ ├── Indexed Files List ├── Source Citations Panel │
-│ └── Clear & Start Over └── Chat Input │
-└──────────────┬───────────────────────────────┬──────────────────────┘
-│ │
-▼ ▼
-┌──────────────────────────┐ ┌──────────────────────────────────────┐
-│ INGESTION PIPELINE │ │ Q&A PIPELINE │
-│ ingestion.py │ │ │
-│ │ │ 1. User submits question │
-│ ┌─────────────────────┐ │ │ 2. Question embedded via OpenAI API │
-│ │ PDF Files │ │ │ 3. FAISS similarity search (top-6) │
-│ │ └─ PyMuPDF │ │ │ 4. Normalize L2 scores → 0-1 │
-│ │ Multi-mode │ │ │ 5. Compute Top-2 avg confidence │
-│ │ extraction │ │ │ 6. Route: │
-│ │ (blocks/text/ │ │ │ High/Medium → gpt-4o-mini LLM │
-│ │ dict modes) │ │ │ Low → "I don't know" │
-│ └─────────────────────┘ │ │ 7. gpt-4o-mini generates answer │
-│ │ │ 8. Extract + deduplicate sources │
-│ ┌─────────────────────┐ │ │ 9. Return answer + citations │
-│ │ Image Files │ │ └──────────────────────────────────────┘
-│ │ └─ Compress image │ │
-│ │ └─ gpt-4o-mini │ │ ┌──────────────────────────────────────┐
-│ │ Vision describes │ │ │ CONFIDENCE SCORING │
-│ │ content │ │ │ │
-│ └─────────────────────┘ │ │ Raw FAISS L2 distance │
-│ │ │ ↓ │
-│ ┌─────────────────────┐ │ │ Normalize: 1 / (1 + distance) │
-│ │ Text Cleaning │ │ │ ↓ │
-│ │ └─ Remove noise │ │ │ Top-2 Average Score │
-│ │ └─ Fix ligatures │ │ │ ↓ │
-│ │ └─ Normalize chars │ │ │ ┌─────────────────────────────┐ │
-│ └─────────────────────┘ │ │ │ Recalibrated post-migration │ │
-│ │ │ │ (see Configuration section) │ │
-│ ┌─────────────────────┐ │ │ └─────────────────────────────┘ │
-│ │ Semantic Chunking │ │ └──────────────────────────────────────┘
-│ │ └─ OpenAI Embeddings│ │
-│ │ detect topic │ │ ┌──────────────────────────────────────┐
-│ │ boundaries │ │ │ VECTOR STORE │
-│ │ └─ Split at meaning │ │ │ retrieval.py │
-│ │ shifts │ │ │ │
-│ │ └─ Recursive │ │ │ OpenAI Embeddings API │
-│ │ fallback for │ │ │ text-embedding-3-small │
-│ │ oversized chunks │ │ │ ↓ │
-│ └─────────────────────┘ │ │ 1536-dimensional vectors │
-│ │ │ ↓ │
-│ Metadata attached: │ │ FAISS Local Index │
-│ ├── source (filename) │ │ (Persisted to disk) │
-│ ├── type (pdf/image) │ │ ↓ │
-│ ├── page_number │ │ vectorstore/faiss_index/ │
-│ ├── image_name │ │ ├── index.faiss │
-│ └── chunk_id │ │ └── index.pkl │
-└──────────────┬───────────┘ └──────────────────────────────────────┘
-│ │
-└───────────────────────────────┘
 
-text
+```mermaid
+flowchart TB
+    subgraph Frontend["🖥️ STREAMLIT FRONTEND (app.py)"]
+        direction LR
+        subgraph Sidebar["Sidebar"]
+            S1[File Uploader]
+            S2[Process & Index Button]
+            S3[System Status]
+            S4[Chunk Stats]
+            S5[Indexed Files List]
+            S6[Clear & Start Over]
+        end
+        subgraph ChatArea["Main Chat Area"]
+            C1[Chat History]
+            C2[User Bubbles]
+            C3[AI Answer Bubbles]
+            C4[Confidence Badges]
+            C5[Source Citations Panel]
+            C6[Chat Input]
+        end
+    end
+
+    Frontend --> Ingestion
+    Frontend --> QA
+
+    subgraph Ingestion["📥 INGESTION PIPELINE (ingestion.py)"]
+        I1[PDF Files] --> I1a[PyMuPDF Multi-mode Extraction<br/>blocks / text / dict]
+        I2[Image Files] --> I2a[Compress Image] --> I2b[gpt-4o-mini Vision<br/>describes content]
+        I1a --> I3[Text Cleaning<br/>remove noise, fix ligatures, normalize]
+        I2b --> I3
+        I3 --> I4[Semantic Chunking<br/>OpenAI Embeddings detect topic boundaries<br/>recursive fallback for oversized chunks]
+        I4 --> I5[Metadata Attached<br/>source, type, page_number, image_name, chunk_id]
+    end
+
+    Ingestion --> VectorStore
+
+    subgraph VectorStore["🗂️ VECTOR STORE (retrieval.py)"]
+        V1[OpenAI Embeddings API<br/>text-embedding-3-small] --> V2[1536-dim Vectors]
+        V2 --> V3[FAISS Local Index<br/>persisted to disk]
+        V3 --> V4[vectorstore/faiss_index/<br/>index.faiss + index.pkl]
+    end
+
+    subgraph QA["💬 Q&A PIPELINE"]
+        Q1[1. User submits question] --> Q2[2. Question embedded via OpenAI API]
+        Q2 --> Q3[3. FAISS similarity search top-6]
+        Q3 --> Q4[4. Normalize L2 scores → 0-1]
+        Q4 --> Q5[5. Compute Top-2 avg confidence]
+        Q5 --> Q6{6. Route by Confidence}
+        Q6 -->|High / Medium| Q7[7. gpt-4o-mini generates answer]
+        Q6 -->|Low| Q8["I don't know" fallback<br/>no LLM call]
+        Q7 --> Q9[8. Extract + deduplicate sources]
+        Q9 --> Q10[9. Return answer + citations]
+    end
+
+    VectorStore -.-> Q3
+
+    subgraph Confidence["📊 CONFIDENCE SCORING"]
+        CF1[Raw FAISS L2 Distance] --> CF2["Normalize: 1 / (1 + distance)"]
+        CF2 --> CF3[Top-2 Average Score]
+        CF3 --> CF4[Recalibrated post-migration<br/>see Configuration section]
+    end
+
+    Q4 -.-> Confidence
+```
+
+
 
 ---
 
 ## 🔄 Complete Project Flow
-STEP 1: USER UPLOADS FILES
-User selects PDFs and/or images via Streamlit sidebar
-│
-▼
-STEP 2: FILES SAVED TO DISK
-save_uploaded_files() → saves to uploads/
-│
-▼
-STEP 3: DOCUMENT INGESTION
+
+### Step 1 — User Uploads Files
+User selects PDFs and/or images via the Streamlit sidebar.
+
+### Step 2 — Files Saved to Disk
+`save_uploaded_files()` saves incoming files to `uploads/`.
+
+### Step 3 — Document Ingestion
 For each file:
-├── PDF → PyMuPDF multi-mode extraction
-│ → Text cleaning
-│ → Semantic chunking (OpenAI embeddings detect topic boundaries)
-│ → Recursive fallback for oversized chunks
-│ → Metadata: {source, type, page_number, chunk_id}
-│
-└── Image → Compress to ≤3MB JPEG
-→ gpt-4o-mini Vision API (base64 data URL)
-→ Faithful text description extracted
-→ Semantic chunking applied to description
-→ Metadata: {source, type, image_name, chunk_id}
-│
-▼
-STEP 4: EMBEDDING + VECTOR STORE
-All chunks → OpenAI Embeddings API
-→ text-embedding-3-small
-→ 1536-dim vectors
-→ FAISS index built
-→ Saved to vectorstore/faiss_index/ (persistent)
-│
-▼
-STEP 5: USER ASKS A QUESTION
-User types question in Streamlit chat input
-│
-▼
-STEP 6: SEMANTIC RETRIEVAL
-Question → OpenAI Embeddings → query vector
-FAISS similarity_search_with_score(query, k=6)
-→ Returns top-6 chunks + L2 distances
-│
-▼
-STEP 7: CONFIDENCE SCORING
+
+**PDF →**
+1. PyMuPDF multi-mode extraction
+2. Text cleaning
+3. Semantic chunking (OpenAI embeddings detect topic boundaries)
+4. Recursive fallback for oversized chunks
+5. Metadata attached: `{source, type, page_number, chunk_id}`
+
+**Image →**
+1. Compress to ≤3MB JPEG
+2. gpt-4o-mini Vision API (base64 data URL)
+3. Faithful text description extracted
+4. Semantic chunking applied to description
+5. Metadata attached: `{source, type, image_name, chunk_id}`
+
+### Step 4 — Embedding + Vector Store
+All chunks → OpenAI Embeddings API (`text-embedding-3-small`) → 1536-dim vectors → FAISS index built → saved to `vectorstore/faiss_index/` (persistent).
+
+### Step 5 — User Asks a Question
+User types a question in the Streamlit chat input.
+
+### Step 6 — Semantic Retrieval
+Question → OpenAI Embeddings → query vector → FAISS `similarity_search_with_score(query, k=6)` → returns top-6 chunks + L2 distances.
+
+### Step 7 — Confidence Scoring
 For each score:
 normalized = 1 / (1 + L2_distance)
 top2_avg = average of top 2 normalized scores
-├── top2_avg ≥ CONFIDENCE_HIGH → High → proceed to LLM
-├── top2_avg ≥ CONFIDENCE_MEDIUM → Medium → proceed to LLM
-└── top2_avg < CONFIDENCE_MEDIUM → Low → trigger fallback (no LLM call)
-│
-▼
-STEP 8: ANSWER GENERATION (if not fallback)
-Retrieved chunks → format_context()
-→ Source labels attached: [Source N: file.pdf | Page X]
-→ Strict system prompt injected:
-"Answer ONLY from context. Always cite sources.
-Never fabricate. If absent, say I don't know."
-→ gpt-4o-mini generates answer
-→ is_fallback_response() checks for genuine "I don't know"
-│
-▼
-STEP 9: RESPONSE DISPLAYED
-├── Answer text (in chat bubble)
-├── Confidence badge (🟢 High / 🟡 Medium / 🔴 Low)
-├── Sources panel (filename + page number / image)
-└── Fallback badge if triggered
+- `top2_avg ≥ CONFIDENCE_HIGH` → 🟢 **High** → proceed to LLM
+- `top2_avg ≥ CONFIDENCE_MEDIUM` → 🟡 **Medium** → proceed to LLM
+- `top2_avg < CONFIDENCE_MEDIUM` → 🔴 **Low** → trigger fallback (no LLM call)
+
+### Step 8 — Answer Generation (if not fallback)
+1. Retrieved chunks → `format_context()`
+2. Source labels attached: `[Source N: file.pdf | Page X]`
+3. Strict system prompt injected: *"Answer ONLY from context. Always cite sources. Never fabricate. If absent, say I don't know."*
+4. gpt-4o-mini generates the answer
+5. `is_fallback_response()` checks for a genuine "I don't know"
+
+### Step 9 — Response Displayed
+- Answer text (in chat bubble)
+- Confidence badge (🟢 High / 🟡 Medium / 🔴 Low)
+- Sources panel (filename + page number / image)
+- Fallback badge, if triggered
 
 
 
@@ -212,27 +202,30 @@ STEP 9: RESPONSE DISPLAYED
 ---
 
 ## 📁 Project Structure
+
+```
 rag-document-qa/
 │
-├── app.py # Streamlit frontend — dark UI, chat interface, sidebar
-├── ingestion.py # Document ingestion — PDF extraction + OpenAI vision + semantic chunking
-├── retrieval.py # Vector store — OpenAI embeddings, FAISS, confidence scoring
-├── generation.py # Answer generation — OpenAI LLM, prompt engineering, citations
-├── config.py # Central config — paths, models, thresholds, chunking params
+├── app.py                  # Streamlit frontend — dark UI, chat interface, sidebar
+├── ingestion.py             # Document ingestion — PDF extraction + OpenAI vision + semantic chunking
+├── retrieval.py             # Vector store — OpenAI embeddings, FAISS, confidence scoring
+├── generation.py            # Answer generation — OpenAI LLM, prompt engineering, citations
+├── config.py                # Central config — paths, models, thresholds, chunking params
 │
-├── uploads/ # Temporary uploaded files (git-ignored)
-├── vectorstore/ # Persistent FAISS index (git-ignored)
-│ └── faiss_index/
-│ ├── index.faiss
-│ └── index.pkl
+├── uploads/                 # Temporary uploaded files (git-ignored)
+├── vectorstore/             # Persistent FAISS index (git-ignored)
+│   └── faiss_index/
+│       ├── index.faiss
+│       └── index.pkl
 │
 ├── utils/
-│ └── _init_.py
+│   └── __init__.py
 │
-├── .env # API keys (git-ignored — never commit)
-├── .gitignore # Git ignore rules
-├── requirements.txt # All Python dependencies
-└── README.md # This file
+├── .env                     # API keys (git-ignored — never commit)
+├── .gitignore                # Git ignore rules
+├── requirements.txt         # All Python dependencies
+└── README.md                 # This file
+```
 
 
 
@@ -384,6 +377,7 @@ pairs to train a model." ← new topic, new chunk
 ---
 
 ## 🔬 How Confidence Scoring Works
+
 FAISS returns L2 distance (lower = more similar)
 ↓
 Normalize: similarity = 1 / (1 + L2_distance)
@@ -403,9 +397,7 @@ Take average of top-2 scores (more stable than best-only)
 │ → Zero API cost │
 └────────────────────────────────────────────┘
 
-
-
-Threshold values shown are defaults in `config.py` (`CONFIDENCE_HIGH = 0.60`, `CONFIDENCE_MEDIUM = 0.40`) and require re-tuning after the OpenAI embeddings migration — see Configuration Reference above.
+Threshold values shown are defaults in `config.py` (`CONFIDENCE_HIGH = 0.60`, `CONFIDENCE_MEDIUM = 0.40`) and require re-tuning after the OpenAI embeddings migration — see [Configuration Reference](#️-configuration-reference) above.
 
 ---
 
