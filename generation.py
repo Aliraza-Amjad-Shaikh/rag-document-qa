@@ -4,6 +4,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from typing import List
 
 from config import OPENAI_API_KEY, CHAT_MODEL
+from document_store import get_all_documents_summary_text
 
 # ─────────────────────────────────────────────
 # Initialize OpenAI LLM

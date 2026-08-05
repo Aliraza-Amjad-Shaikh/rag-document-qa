@@ -25,7 +25,8 @@ from config import (
     SEMANTIC_BREAKPOINT_TYPE,
     SEMANTIC_BREAKPOINT_THRESHOLD,
     MAX_SEMANTIC_CHUNK_SIZE,
-    MIN_SEMANTIC_CHUNK_SIZE
+    MIN_SEMANTIC_CHUNK_SIZE,
+    CHAT_MODEL
 )
 
 from document_store import add_document_entry
