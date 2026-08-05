@@ -189,6 +189,7 @@ with st.sidebar:
                 for f in uploaded_files:
                     if f.name in st.session_state.indexed_files:
                         existing_vs = remove_source_from_vectorstore(existing_vs, f.name)
+                        remove_document_entry(f.name)
                     save_vectorstore(existing_vs)
 
             with st.spinner("Extracting content..."):
@@ -317,22 +318,24 @@ if prompt := st.chat_input("Ask a question about your documents..."):
     with st.chat_message("assistant"):
         with st.spinner("Searching and generating answer..."):
             try:
-                retrieval_result = retrieve_relevant_chunks(
-                    prompt,
-                    st.session_state.vectorstore
-                )
-                result = generate_answer(
-                    question=prompt,
-                    chunks=retrieval_result["chunks"],
-                    confidence=retrieval_result["confidence"],
-                    should_answer=retrieval_result["should_answer"]
-                )
+                query_type = classify_query_type(prompt)
+
+                if query_type == "global":
+                    result = generate_global_answer(prompt)
+                else:
+                    retrieval_result = retrieve_relevant_chunks(prompt, st.session_state.vectorstore)
+                    result = generate_answer(
+                        question=prompt,
+                        chunks=retrieval_result["chunks"],
+                        confidence=retrieval_result["confidence"],
+                        should_answer=retrieval_result["should_answer"]
+                    )
 
                 st.write(result["answer"])
 
-                conf     = result["confidence"]
+                conf = result["confidence"]
                 fallback = result["fallback"]
-                sources  = result["sources"]
+                sources = result["sources"]
 
                 if conf == "High":
                     st.success(f"🟢 Confidence: {conf}")
@@ -353,19 +356,19 @@ if prompt := st.chat_input("Ask a question about your documents..."):
                                 st.write(f"🖼️ `{src['image_name']}` — Image")
 
                 st.session_state.messages.append({
-                    "role":       "assistant",
-                    "content":    result["answer"],
+                    "role": "assistant",
+                    "content": result["answer"],
                     "confidence": conf,
-                    "sources":    sources,
-                    "fallback":   fallback
+                    "sources": sources,
+                    "fallback": fallback
                 })
 
             except Exception as e:
                 st.error(f"Error: {str(e)}")
                 st.session_state.messages.append({
-                    "role":       "assistant",
-                    "content":    f"Error: {str(e)}",
+                    "role": "assistant",
+                    "content": f"Error: {str(e)}",
                     "confidence": "Low",
-                    "sources":    [],
-                    "fallback":   True
+                    "sources": [],
+                    "fallback": True
                 })
