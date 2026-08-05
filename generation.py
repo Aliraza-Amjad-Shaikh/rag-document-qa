@@ -20,6 +20,23 @@ def get_llm() -> ChatOpenAI:
         max_tokens=1500
     )
 
+def generate_global_answer(question: str) -> dict:
+    from document_store import get_all_documents_summary_text
+    summary_context = get_all_documents_summary_text()
+    if not summary_context:
+        return {"answer": "I don't know based on the provided documents.", "confidence": "Low", "sources": [], "fallback": True}
+
+    llm = get_llm()
+    prompt = f"""Answer the question using only the document summaries below.
+
+{summary_context}
+
+Question: {question}
+
+Answer clearly and concisely."""
+    response = llm.invoke([HumanMessage(content=prompt)])
+    return {"answer": response.content.strip(), "confidence": "High", "sources": [], "fallback": False}
+
 # ─────────────────────────────────────────────
 # Format Context
 # ─────────────────────────────────────────────
