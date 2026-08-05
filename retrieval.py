@@ -7,16 +7,6 @@ from langchain_core.documents import Document
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage
 
-GLOBAL_QUERY_PATTERNS = [
-    "what is this pdf about", "what is this document about", "summarize",
-    "summary", "overview", "how many pages", "main topic",
-    "what does this document cover", "what topics"
-]
-
-def classify_query_type(query: str) -> str:
-    q = query.lower()
-    return "global" if any(p in q for p in GLOBAL_QUERY_PATTERNS) else "specific"
-
 from config import (
     OPENAI_API_KEY,
     EMBEDDING_MODEL,
@@ -29,6 +19,44 @@ from config import (
     ENABLE_QUERY_REWRITING,
     QUERY_REWRITE_TEMPERATURE
 )
+
+def classify_query_type(query: str) -> str:
+    """
+    Classify user query as:
+    - "global"   -> summary / overview / document-level questions
+    - "specific" -> fact lookup questions
+    """
+    q = " ".join(query.lower().strip().split())
+
+    global_patterns = [
+        "what is this pdf about",
+        "what is this document about",
+        "what is the pdf about",
+        "what is the document about",
+        "summarize this pdf",
+        "summarize this document",
+        "summary of pdf",
+        "summary of document",
+        "give me a summary",
+        "give me an overview",
+        "overview of the pdf",
+        "overview of the document",
+        "main topic",
+        "main idea",
+        "what does this document cover",
+        "what does this pdf cover",
+        "what topics does this document cover",
+        "what topics does this pdf cover",
+        "tell me about this document",
+        "tell me about this pdf",
+        "what are the key points",
+        "what are the important points",
+    ]
+
+    if any(pattern in q for pattern in global_patterns):
+        return "global"
+
+    return "specific"
 
 # ─────────────────────────────────────────────
 # Embeddings Initialization
