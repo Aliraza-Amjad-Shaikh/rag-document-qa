@@ -12,9 +12,12 @@ from retrieval import (
     remove_source_from_vectorstore,
     save_vectorstore,
     retrieve_relevant_chunks,
-    clear_vectorstore
+    clear_vectorstore,
+    classify_query_type
 )
-from generation import generate_answer
+from generation import generate_answer, generate_global_answer
+
+from document_store import remove_document_entry
 
 st.set_page_config(
     page_title="RAG Document Q&A",

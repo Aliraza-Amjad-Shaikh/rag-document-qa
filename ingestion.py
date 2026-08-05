@@ -336,13 +336,51 @@ def semantic_chunk_text(
     return final_chunks
 
 # ─────────────────────────────────────────────
+# Document Summary Generation
+# ─────────────────────────────────────────────
+
+def generate_document_summary(full_text: str, filename: str) -> str:
+    """
+    Generate a short summary of a document's full text using the LLM.
+    Called once per file at ingestion time — not per question.
+
+    Note: only the first 12,000 characters are sent to the LLM.
+    Very large documents will be summarized based on that initial
+    portion only, not the entire text.
+
+    Args:
+        full_text: Combined raw text of the document (all pages/description)
+        filename: Name of the file, used for context in the prompt
+
+    Returns:
+        Summary string (4-6 sentences)
+    """
+    try:
+        llm = ChatOpenAI(model=CHAT_MODEL, openai_api_key=OPENAI_API_KEY, temperature=0)
+        prompt = f"""Summarize this document in 4-6 sentences, covering its main topic, purpose, and key sections.
+
+Document: {filename}
+
+Content:
+{full_text[:12000]}
+
+Summary:"""
+        response = llm.invoke([HumanMessage(content=prompt)])
+        summary = response.content.strip()
+        print(f"  [SUMMARY] ✅ Generated summary for '{filename}' ({len(summary)} chars)")
+        return summary
+    except Exception as e:
+        print(f"  [SUMMARY] ❌ Failed to generate summary for '{filename}': {e}")
+        return "Summary could not be generated for this document."
+
+# ─────────────────────────────────────────────
 # PDF Ingestion Pipeline
 # ─────────────────────────────────────────────
 
 def ingest_pdf(pdf_path: str) -> List[Document]:
     """
     Full PDF ingestion pipeline:
-    extract text (multi-mode) → clean → semantic chunk → metadata
+    extract text (multi-mode) → clean → semantic chunk → metadata → summary
 
     Args:
         pdf_path: Absolute path to PDF file
@@ -367,6 +405,19 @@ def ingest_pdf(pdf_path: str) -> List[Document]:
         chunk_id += len(chunks)
 
     print(f"[PDF] ✅ {len(pages)} pages → {len(all_chunks)} semantic chunks")
+
+    # ── Generate summary + save metadata entry ──
+    filename = os.path.basename(pdf_path)
+    full_text = "\n\n".join(p["text"] for p in pages)
+    summary = generate_document_summary(full_text, filename)
+    add_document_entry(
+        filename=filename,
+        doc_type="pdf",
+        page_count=len(pages),
+        chunk_count=len(all_chunks),
+        summary=summary
+    )
+
     return all_chunks
 
 # ─────────────────────────────────────────────
@@ -475,23 +526,10 @@ IMPORTANT RULES:
         print(f"  [IMAGE] ❌ OpenAI Vision failed for '{filename}': {e}")
         return f"Image content could not be extracted: {e}"
 
-def generate_document_summary(full_text: str, filename: str) -> str:
-    llm = ChatOpenAI(model=CHAT_MODEL, openai_api_key=OPENAI_API_KEY, temperature=0)
-    prompt = f"""Summarize this document in 4-6 sentences, covering its main topic, purpose, and key sections.
-
-Document: {filename}
-
-Content:
-{full_text[:12000]}
-
-Summary:"""
-    response = llm.invoke([HumanMessage(content=prompt)])
-    return response.content.strip()
-
 def ingest_image(image_path: str) -> List[Document]:
     """
     Full image ingestion pipeline:
-    compress → OpenAI Vision describes → semantic chunk → metadata
+    compress → OpenAI Vision describes → semantic chunk → metadata → summary
 
     Args:
         image_path: Absolute path to image
@@ -529,6 +567,17 @@ def ingest_image(image_path: str) -> List[Document]:
         )]
 
     print(f"[IMAGE] ✅ {len(chunks)} semantic chunk(s) produced")
+
+    # ── Generate summary + save metadata entry ──
+    summary = generate_document_summary(description, filename)
+    add_document_entry(
+        filename=filename,
+        doc_type="image",
+        page_count=None,
+        chunk_count=len(chunks),
+        summary=summary
+    )
+
     return chunks
 
 # ─────────────────────────────────────────────
@@ -615,10 +664,10 @@ if __name__ == "__main__":
 
     for i, doc in enumerate(documents[:5]):
         print(f"\n--- Chunk {i+1} ---")
-        print(f"Source     : {doc.metadata.get('source')}")
-        print(f"Type       : {doc.metadata.get('type')}")
-        print(f"Page       : {doc.metadata.get('page_number', 'N/A')}")
-        print(f"Chunk ID   : {doc.metadata.get('chunk_id')}")
-        print(f"Length     : {len(doc.page_content)} chars")
-        print(f"Preview    : {doc.page_content[:200]}...")
+        print(f"Source   : {doc.metadata.get('source')}")
+        print(f"Type     : {doc.metadata.get('type')}")
+        print(f"Page     : {doc.metadata.get('page_number', 'N/A')}")
+        print(f"Chunk ID : {doc.metadata.get('chunk_id')}")
+        print(f"Length   : {len(doc.page_content)} chars")
+        print(f"Preview  : {doc.page_content[:200]}...")
         print(f"{'─'*60}")
