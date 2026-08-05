@@ -28,6 +28,8 @@ from config import (
     MIN_SEMANTIC_CHUNK_SIZE
 )
 
+from document_store import add_document_entry
+
 # ─────────────────────────────────────────────
 # Initialize Semantic Chunker
 # ─────────────────────────────────────────────
@@ -471,6 +473,19 @@ IMPORTANT RULES:
     except Exception as e:
         print(f"  [IMAGE] ❌ OpenAI Vision failed for '{filename}': {e}")
         return f"Image content could not be extracted: {e}"
+
+def generate_document_summary(full_text: str, filename: str) -> str:
+    llm = ChatOpenAI(model=CHAT_MODEL, openai_api_key=OPENAI_API_KEY, temperature=0)
+    prompt = f"""Summarize this document in 4-6 sentences, covering its main topic, purpose, and key sections.
+
+Document: {filename}
+
+Content:
+{full_text[:12000]}
+
+Summary:"""
+    response = llm.invoke([HumanMessage(content=prompt)])
+    return response.content.strip()
 
 def ingest_image(image_path: str) -> List[Document]:
     """

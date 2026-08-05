@@ -7,6 +7,16 @@ from langchain_core.documents import Document
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage
 
+GLOBAL_QUERY_PATTERNS = [
+    "what is this pdf about", "what is this document about", "summarize",
+    "summary", "overview", "how many pages", "main topic",
+    "what does this document cover", "what topics"
+]
+
+def classify_query_type(query: str) -> str:
+    q = query.lower()
+    return "global" if any(p in q for p in GLOBAL_QUERY_PATTERNS) else "specific"
+
 from config import (
     OPENAI_API_KEY,
     EMBEDDING_MODEL,
