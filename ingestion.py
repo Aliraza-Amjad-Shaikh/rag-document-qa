@@ -411,7 +411,7 @@ def ingest_pdf(pdf_path: str, api_key: str) -> List[Document]:
     # ── Generate summary + save metadata entry ──
     filename = os.path.basename(pdf_path)
     full_text = "\n\n".join(p["text"] for p in pages)
-    summary = generate_document_summary(full_text, filename)
+    summary = generate_document_summary(full_text, filename, api_key)
     add_document_entry(
         filename=filename,
         doc_type="pdf",
