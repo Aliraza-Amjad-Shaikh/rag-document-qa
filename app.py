@@ -5,6 +5,7 @@ import sys
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 from config import UPLOAD_DIR
+from auth import validate_openai_key
 from ingestion import save_uploaded_files, ingest_documents
 from retrieval import (
     get_or_build_vectorstore,
@@ -151,6 +152,8 @@ header { visibility: hidden; }
 
 # ── Session State ──
 defaults = {
+    "openai_api_key": None,
+    "api_key_validated": False,
     "messages":      [],
     "vectorstore":   None,
     "is_ready":      False,
@@ -162,6 +165,43 @@ defaults = {
 for k, v in defaults.items():
     if k not in st.session_state:
         st.session_state[k] = v
+
+# ── API KEY GATE ──
+
+if not st.session_state.api_key_validated:
+    st.title("🔐 OpenAI API Key Required")
+    st.write(
+        "Enter your OpenAI API key to use the document Q&A system."
+    )
+    st.caption(
+        "Your key is used only for this Streamlit session and is not saved by the app."
+    )
+
+    entered_api_key = st.text_input(
+        "OpenAI API key",
+        type="password",
+        placeholder="sk-...",
+        help="The key is required to process documents and answer questions.",
+    )
+
+    if st.button("Validate API Key", type="primary"):
+        if not entered_api_key.strip():
+            st.error("Please enter an API key.")
+        else:
+            with st.spinner("Validating API key..."):
+                is_valid, message = validate_openai_key(
+                    entered_api_key.strip()
+                )
+
+            if is_valid:
+                st.session_state.openai_api_key = entered_api_key.strip()
+                st.session_state.api_key_validated = True
+                st.success(message)
+                st.rerun()
+            else:
+                st.error(message)
+
+    st.stop()
 
 # ── SIDEBAR ──
 with st.sidebar:
@@ -240,9 +280,19 @@ with st.sidebar:
             icon = "📄" if ext == ".pdf" else "🖼️"
             st.write(f"{icon} {fname}")
 
+        if st.button("🔒 Remove API Key"):
+            st.session_state.openai_api_key = None
+            st.session_state.api_key_validated = False
+            st.session_state.vectorstore = None
+            st.session_state.is_ready = False
+            st.rerun()
+
         st.divider()
         if st.button("🗑️ Clear & Start Over"):
             clear_vectorstore()
+            for key, value in defaults.items():
+                if key not in {"openai_api_key", "api_key_validated"}:
+                    st.session_state[key] = value
             for k, v in defaults.items():
                 st.session_state[k] = v
             if os.path.exists(UPLOAD_DIR):
