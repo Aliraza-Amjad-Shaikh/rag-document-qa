@@ -3,31 +3,31 @@ from langchain_core.documents import Document
 from langchain_core.messages import HumanMessage, SystemMessage
 from typing import List
 
-from config import OPENAI_API_KEY, CHAT_MODEL
+from config import CHAT_MODEL
 from document_store import get_all_documents_summary_text
 
 # ─────────────────────────────────────────────
 # Initialize OpenAI LLM
 # ─────────────────────────────────────────────
 
-def get_llm() -> ChatOpenAI:
+def get_llm(api_key: str) -> ChatOpenAI:
     """
     Initialize and return OpenAI chat model via LangChain.
     """
     return ChatOpenAI(
         model=CHAT_MODEL,
-        openai_api_key=OPENAI_API_KEY,
+        api_key=api_key,
         temperature=0,
         max_tokens=1500
     )
 
-def generate_global_answer(question: str) -> dict:
+def generate_global_answer(question: str, api_key: str) -> dict:
     from document_store import get_all_documents_summary_text
     summary_context = get_all_documents_summary_text()
     if not summary_context:
         return {"answer": "I don't know based on the provided documents.", "confidence": "Low", "sources": [], "fallback": True}
 
-    llm = get_llm()
+    llm = get_llm(api_key)
     prompt = f"""Answer the question using only the document summaries below.
 
 {summary_context}
@@ -180,7 +180,8 @@ def generate_answer(
     question: str,
     chunks: List[Document],
     confidence: str,
-    should_answer: bool
+    should_answer: bool,
+    api_key: str
 ) -> dict:
     """
     Generate a grounded answer using OpenAI.
@@ -203,7 +204,7 @@ def generate_answer(
     print(f"[GENERATION] Context: {len(context)} characters")
 
     try:
-        llm = get_llm()
+        llm = get_llm(api_key)
         response = llm.invoke(messages)
         answer = response.content.strip()
         print(f"[GENERATION] ✅ Answer received: {answer[:100]}...")
