@@ -18,7 +18,7 @@ from retrieval import (
 )
 from generation import generate_answer, generate_global_answer
 
-from document_store import remove_document_entry
+from document_store import remove_document_entry, clear_document_store, load_document_store
 
 st.set_page_config(
     page_title="RAG Document Q&A",
@@ -224,10 +224,11 @@ with st.sidebar:
             with st.spinner("Saving files..."):
                 saved_paths = save_uploaded_files(uploaded_files)
 
+            existing_store = load_document_store()
             existing_vs = get_or_build_vectorstore()
             if existing_vs:
                 for f in uploaded_files:
-                    if f.name in st.session_state.indexed_files:
+                    if f.name in existing_store:
                         existing_vs = remove_source_from_vectorstore(existing_vs, f.name)
                         remove_document_entry(f.name)
                     save_vectorstore(existing_vs)
@@ -290,6 +291,7 @@ with st.sidebar:
         st.divider()
         if st.button("🗑️ Clear & Start Over"):
             clear_vectorstore()
+            clear_document_store()
             for key, value in defaults.items():
                 if key not in {"openai_api_key", "api_key_validated"}:
                     st.session_state[key] = value
