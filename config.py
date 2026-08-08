@@ -9,7 +9,8 @@ load_dotenv()
 # ─────────────────────────────────────────────
 # API Keys
 # ─────────────────────────────────────────────
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+# OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+# Not using this as we will be using API key taken from user at run-time
 
 # ─────────────────────────────────────────────
 # Folder Paths
