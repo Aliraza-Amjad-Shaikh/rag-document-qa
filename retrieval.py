@@ -8,7 +8,6 @@ from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage
 
 from config import (
-    OPENAI_API_KEY,
     EMBEDDING_MODEL,
     VECTORSTORE_DIR,
     FAISS_INDEX_NAME,
@@ -62,21 +61,21 @@ def classify_query_type(query: str) -> str:
 # Embeddings Initialization
 # ─────────────────────────────────────────────
 
-def get_embeddings() -> OpenAIEmbeddings:
+def get_embeddings(api_key: str) -> OpenAIEmbeddings:
     """
     Initialize OpenAI embeddings.
     Uses text-embedding-3-small model (1536-dim).
     """
     return OpenAIEmbeddings(
         model=EMBEDDING_MODEL,
-        openai_api_key=OPENAI_API_KEY
+        api_key=api_key
     )
 
 # ─────────────────────────────────────────────
 # Query Rewriting (HyDE-lite)
 # ─────────────────────────────────────────────
 
-def rewrite_query(query: str) -> str:
+def rewrite_query(query: str, api_key: str) -> str:
     """
     Rewrite a user's question into a clearer, more document-aligned
     phrasing to improve semantic retrieval. The original question is
@@ -86,7 +85,7 @@ def rewrite_query(query: str) -> str:
     try:
         llm = ChatOpenAI(
             model=CHAT_MODEL,
-            openai_api_key=OPENAI_API_KEY,
+            api_key=api_key,
             temperature=QUERY_REWRITE_TEMPERATURE
         )
         prompt = f"""Rewrite the following question to be clearer and more complete,
@@ -109,14 +108,14 @@ Rewritten question:"""
 # Build Vector Store
 # ─────────────────────────────────────────────
 
-def build_vectorstore(documents: List[Document]) -> FAISS:
+def build_vectorstore(documents: List[Document], api_key: str) -> FAISS:
     """
     Embed all chunks and store in FAISS.
     """
     if not documents:
         raise ValueError("[ERROR] No documents provided.")
 
-    embeddings = get_embeddings()
+    embeddings = get_embeddings(api_key)
     print(f"[VECTORSTORE] Embedding {len(documents)} chunks using {EMBEDDING_MODEL}...")
     vectorstore = FAISS.from_documents(documents, embeddings)
     print("[VECTORSTORE] ✅ Embedding complete.")
@@ -136,7 +135,7 @@ def save_vectorstore(vectorstore: FAISS) -> None:
 # Load Vector Store
 # ─────────────────────────────────────────────
 
-def load_vectorstore() -> FAISS | None:
+def load_vectorstore(api_key: str) -> FAISS | None:
     """Load existing FAISS index from disk."""
     save_path = os.path.join(VECTORSTORE_DIR, FAISS_INDEX_NAME)
     index_file = os.path.join(save_path, "index.faiss")
@@ -145,7 +144,7 @@ def load_vectorstore() -> FAISS | None:
         print("[VECTORSTORE] No existing index found.")
         return None
 
-    embeddings = get_embeddings()
+    embeddings = get_embeddings(api_key)
     print("[VECTORSTORE] Loading existing index...")
     vectorstore = FAISS.load_local(
         save_path,
@@ -176,13 +175,13 @@ def compute_confidence(score: float) -> str:
 # Retrieval Pipeline
 # ─────────────────────────────────────────────
 
-def retrieve_relevant_chunks(query: str, vectorstore: FAISS) -> dict:
+def retrieve_relevant_chunks(query: str, vectorstore: FAISS, api_key: str) -> dict:
     """
     Retrieve top-k relevant chunks with confidence scoring.
     Uses a rewritten query for embedding/search if enabled,
     but preserves the original query for logging.
     """
-    search_query = rewrite_query(query) if ENABLE_QUERY_REWRITING else query
+    search_query = rewrite_query(query, api_key) if ENABLE_QUERY_REWRITING else query
     results = vectorstore.similarity_search_with_score(search_query, k=TOP_K_RESULTS)
 
     if not results:
@@ -225,7 +224,7 @@ def retrieve_relevant_chunks(query: str, vectorstore: FAISS) -> dict:
 # Master Vector Store Handler
 # ─────────────────────────────────────────────
 
-def get_or_build_vectorstore(documents: List[Document] = None) -> FAISS | None:
+def get_or_build_vectorstore(api_key: str, documents: List[Document] = None) -> FAISS | None:
     """
     If documents provided → always rebuild fresh.
     If not → try loading existing index.
@@ -236,11 +235,11 @@ def get_or_build_vectorstore(documents: List[Document] = None) -> FAISS | None:
         if os.path.exists(save_path):
             shutil.rmtree(save_path)
             print("[VECTORSTORE] Cleared old index.")
-        vectorstore = build_vectorstore(documents)
+        vectorstore = build_vectorstore(documents, api_key)
         save_vectorstore(vectorstore)
         return vectorstore
 
-    vectorstore = load_vectorstore()
+    vectorstore = load_vectorstore(api_key)
     if vectorstore:
         print("[VECTORSTORE] Using existing index.")
         return vectorstore
@@ -248,12 +247,12 @@ def get_or_build_vectorstore(documents: List[Document] = None) -> FAISS | None:
     print("[VECTORSTORE] No index found and no documents provided.")
     return None
 
-def add_documents_to_vectorstore(documents: List[Document]) -> FAISS:
+def add_documents_to_vectorstore(documents: List[Document], api_key: str) -> FAISS:
     """
     Add new documents to an existing index if one exists.
     Otherwise, build a fresh index. Never deletes existing data.
     """
-    existing_vs = load_vectorstore()
+    existing_vs = load_vectorstore(api_key)
     if existing_vs:
         print(f"[VECTORSTORE] Adding {len(documents)} new chunks to existing index...")
         existing_vs.add_documents(documents)
@@ -262,7 +261,7 @@ def add_documents_to_vectorstore(documents: List[Document]) -> FAISS:
         return existing_vs
 
     print("[VECTORSTORE] No existing index — building fresh.")
-    vectorstore = build_vectorstore(documents)
+    vectorstore = build_vectorstore(documents, api_key)
     save_vectorstore(vectorstore)
     return vectorstore
 
