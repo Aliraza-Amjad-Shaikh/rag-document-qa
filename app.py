@@ -203,6 +203,8 @@ if not st.session_state.api_key_validated:
 
     st.stop()
 
+api_key = st.session_state.openai_api_key
+
 # ── SIDEBAR ──
 with st.sidebar:
     st.title("📚 RAG Document Q&A")
@@ -225,7 +227,7 @@ with st.sidebar:
                 saved_paths = save_uploaded_files(uploaded_files)
 
             existing_store = load_document_store()
-            existing_vs = get_or_build_vectorstore()
+            existing_vs = get_or_build_vectorstore(api_key=api_key)
             if existing_vs:
                 for f in uploaded_files:
                     if f.name in existing_store:
@@ -234,14 +236,14 @@ with st.sidebar:
                     save_vectorstore(existing_vs)
 
             with st.spinner("Extracting content..."):
-                docs = ingest_documents(saved_paths)
+                docs = ingest_documents(saved_paths, api_key=api_key)
 
             if docs:
                 pdf_chunks   = len([d for d in docs if d.metadata.get("type") == "pdf"])
                 image_chunks = len([d for d in docs if d.metadata.get("type") == "image"])
 
                 with st.spinner("Building vector store..."):
-                    vs = add_documents_to_vectorstore(documents=docs)
+                    vs = add_documents_to_vectorstore(documents=docs, api_key=api_key)
 
                 if vs:
                     st.session_state.vectorstore = vs
@@ -373,14 +375,15 @@ if prompt := st.chat_input("Ask a question about your documents..."):
                 query_type = classify_query_type(prompt)
 
                 if query_type == "global":
-                    result = generate_global_answer(prompt)
+                    result = retrieve_relevant_chunks(prompt, st.session_state.vectorstore, api_key=api_key)
                 else:
-                    retrieval_result = retrieve_relevant_chunks(prompt, st.session_state.vectorstore)
+                    retrieval_result = retrieve_relevant_chunks(prompt, st.session_state.vectorstore, api_key=api_key)
                     result = generate_answer(
                         question=prompt,
                         chunks=retrieval_result["chunks"],
                         confidence=retrieval_result["confidence"],
-                        should_answer=retrieval_result["should_answer"]
+                        should_answer=retrieval_result["should_answer"],
+                        api_key=api_key
                     )
 
                 st.write(result["answer"])
