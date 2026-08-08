@@ -9,14 +9,9 @@
 
 ---
 
-A production-ready **Retrieval-Augmented Generation (RAG)** system that lets you
-upload PDF documents and images, ask natural language questions, and receive
-accurate answers with **exact source citations**, **confidence scoring**, and a
-**smart "I don't know" fallback** to prevent hallucination.
+A production-ready **Retrieval-Augmented Generation (RAG)** system that lets you upload PDF documents and images, ask natural language questions, and receive accurate answers with **exact source citations**, **confidence scoring**, and a **smart "I don't know" fallback** to prevent hallucination.
 
-Powered by **OpenAI gpt-4o-mini** for LLM + Vision, **OpenAI text-embedding-3-small**
-for embeddings, **LangChain Semantic Chunking** for intelligent document splitting,
-and **FAISS** for fast local vector search.
+Powered by **OpenAI gpt-4o-mini** for LLM + Vision, **OpenAI text-embedding-3-small** for embeddings, **LangChain Semantic Chunking** for intelligent document splitting, and **FAISS** for fast local vector search.
 
 ---
 
@@ -64,6 +59,7 @@ flowchart TB
         I2b --> I3
         I3 --> I4[Semantic Chunking<br/>OpenAI Embeddings detect topic boundaries<br/>recursive fallback for oversized chunks]
         I4 --> I5[Metadata Attached<br/>source, type, page_number, image_name, chunk_id]
+        I4 --> I6[Document Summary Stored<br/>document_store.json]
     end
 
     Ingestion --> VectorStore
@@ -75,18 +71,22 @@ flowchart TB
     end
 
     subgraph QA["💬 Q&A PIPELINE"]
-        Q1[1. User submits question] --> Q2[2. Question embedded via OpenAI API]
-        Q2 --> Q3[3. FAISS similarity search top-6]
-        Q3 --> Q4[4. Normalize L2 scores → 0-1]
-        Q4 --> Q5[5. Compute Top-2 avg confidence]
-        Q5 --> Q6{6. Route by Confidence}
-        Q6 -->|High / Medium| Q7[7. gpt-4o-mini generates answer]
-        Q6 -->|Low| Q8["I don't know" fallback<br/>no LLM call]
-        Q7 --> Q9[8. Extract + deduplicate sources]
-        Q9 --> Q10[9. Return answer + citations]
+        Q1[1. User submits question] --> Q2[2. Query router classifies question]
+        Q2 --> Q3{Global question?}
+        Q3 -->|Yes| Q4[Answer from document summaries + metadata]
+        Q3 -->|No| Q5[OpenAI Embeddings query vector]
+        Q5 --> Q6[FAISS similarity search top-6]
+        Q6 --> Q7[Normalize L2 scores → 0-1]
+        Q7 --> Q8[Compute Top-2 avg confidence]
+        Q8 --> Q9{Route by Confidence}
+        Q9 -->|High / Medium| Q10[gpt-4o-mini generates answer]
+        Q9 -->|Low| Q11["I don't know" fallback<br/>no LLM call]
+        Q10 --> Q12[Extract + deduplicate sources]
+        Q12 --> Q13[Return answer + citations]
     end
 
-    VectorStore -.-> Q3
+    VectorStore -.-> Q6
+    Ingestion -.-> Q4
 
     subgraph Confidence["📊 CONFIDENCE SCORING"]
         CF1[Raw FAISS L2 Distance] --> CF2["Normalize: 1 / (1 + distance)"]
@@ -94,10 +94,8 @@ flowchart TB
         CF3 --> CF4[Recalibrated post-migration<br/>see Configuration section]
     end
 
-    Q4 -.-> Confidence
+    Q7 -.-> Confidence
 ```
-
-
 
 ---
 
@@ -113,73 +111,79 @@ User selects PDFs and/or images via the Streamlit sidebar.
 For each file:
 
 **PDF →**
-1. PyMuPDF multi-mode extraction
-2. Text cleaning
-3. Semantic chunking (OpenAI embeddings detect topic boundaries)
-4. Recursive fallback for oversized chunks
-5. Metadata attached: `{source, type, page_number, chunk_id}`
+1. PyMuPDF multi-mode extraction.
+2. Text cleaning.
+3. Semantic chunking (OpenAI embeddings detect topic boundaries).
+4. Recursive fallback for oversized chunks.
+5. Metadata attached: `{source, type, page_number, chunk_id}`.
+6. Document summary generated and stored in `document_store.json`.
 
 **Image →**
-1. Compress to ≤3MB JPEG
-2. gpt-4o-mini Vision API (base64 data URL)
-3. Faithful text description extracted
-4. Semantic chunking applied to description
-5. Metadata attached: `{source, type, image_name, chunk_id}`
+1. Compress to ≤3MB JPEG.
+2. gpt-4o-mini Vision API (base64 data URL).
+3. Faithful text description extracted.
+4. Semantic chunking applied to description.
+5. Metadata attached: `{source, type, image_name, chunk_id}`.
+6. Summary generated from the description and stored in `document_store.json`.
 
 ### Step 4 — Embedding + Vector Store
-All chunks → OpenAI Embeddings API (`text-embedding-3-small`) → 1536-dim vectors → FAISS index built → saved to `vectorstore/faiss_index/` (persistent).
+All chunks → OpenAI Embeddings API (`text-embedding-3-small`) → 1536-dim vectors → FAISS index built → saved to `vectorstore/faiss_index/`.
 
 ### Step 5 — User Asks a Question
 User types a question in the Streamlit chat input.
 
-### Step 6 — Semantic Retrieval
-Question → OpenAI Embeddings → query vector → FAISS `similarity_search_with_score(query, k=6)` → returns top-6 chunks + L2 distances.
+### Step 6 — Question Routing
+The app first classifies the question:
+- **Global/document-level questions** like “what is this about?”, “summarize this pdf”, or “how many pages?” go to the summary/metadata path.
+- **Specific factual questions** go to semantic retrieval.
 
-### Step 7 — Confidence Scoring
+### Step 7 — Semantic Retrieval
+For specific questions, the question → OpenAI embeddings → FAISS `similarity_search_with_score(query, k=6)` → top-6 chunks + L2 distances.
+
+### Step 8 — Confidence Scoring
 For each score:
 normalized = 1 / (1 + L2_distance)
 top2_avg = average of top 2 normalized scores
-- `top2_avg ≥ CONFIDENCE_HIGH` → 🟢 **High** → proceed to LLM
-- `top2_avg ≥ CONFIDENCE_MEDIUM` → 🟡 **Medium** → proceed to LLM
-- `top2_avg < CONFIDENCE_MEDIUM` → 🔴 **Low** → trigger fallback (no LLM call)
+- `top2_avg ≥ CONFIDENCE_HIGH` → 🟢 **High** → proceed to LLM.
+- `top2_avg ≥ CONFIDENCE_MEDIUM` → 🟡 **Medium** → proceed to LLM.
+- `top2_avg < CONFIDENCE_MEDIUM` → 🔴 **Low** → trigger fallback.
 
-### Step 8 — Answer Generation (if not fallback)
-1. Retrieved chunks → `format_context()`
-2. Source labels attached: `[Source N: file.pdf | Page X]`
-3. Strict system prompt injected: *"Answer ONLY from context. Always cite sources. Never fabricate. If absent, say I don't know."*
-4. gpt-4o-mini generates the answer
-5. `is_fallback_response()` checks for a genuine "I don't know"
+### Step 9 — Answer Generation
+1. Retrieved chunks → `format_context()`.
+2. Source labels attached: `[Source N: file.pdf | Page X]`.
+3. Strict system prompt injected.
+4. gpt-4o-mini generates the answer.
+5. `is_fallback_response()` checks for a genuine "I don't know".
 
-### Step 9 — Response Displayed
-- Answer text (in chat bubble)
-- Confidence badge (🟢 High / 🟡 Medium / 🔴 Low)
-- Sources panel (filename + page number / image)
-- Fallback badge, if triggered
-
-
+### Step 10 — Response Displayed
+- Answer text in chat bubble.
+- Confidence badge (🟢 High / 🟡 Medium / 🔴 Low).
+- Sources panel (filename + page number / image).
+- Fallback badge, if triggered.
 
 ---
 
 ## ✨ Features
 
 ### Core RAG Features
-- 📄 **PDF Ingestion** — Multi-mode extraction (blocks, text, dict) handles columns, tables, complex layouts
-- 🖼️ **Image Understanding** — gpt-4o-mini Vision reads text, charts, diagrams, and tables from images
-- 🧠 **Semantic Chunking** — OpenAI embeddings detect topic boundaries for intelligent splitting
-- 🔍 **FAISS Vector Search** — Local, persistent vector store with fast similarity search
-- 📊 **Confidence Scoring** — Every answer scored High / Medium / Low based on retrieval similarity
-- 🚫 **Hallucination Prevention** — Strict prompt engineering + Low confidence fallback
-- 📚 **Source Citations** — Every claim cited with exact filename and page number
-- 💾 **Persistent Index** — Vector store saved to disk, no re-embedding on restart
-- 🔄 **Multi-file Support** — Query across multiple PDFs and images simultaneously
+- 📄 **PDF Ingestion** — Multi-mode extraction (blocks, text, dict) handles columns, tables, complex layouts.
+- 🖼️ **Image Understanding** — gpt-4o-mini Vision reads text, charts, diagrams, and tables from images.
+- 🧠 **Semantic Chunking** — OpenAI embeddings detect topic boundaries for intelligent splitting.
+- 🔍 **FAISS Vector Search** — Local, persistent vector store with fast similarity search.
+- 📊 **Confidence Scoring** — Every answer scored High / Medium / Low based on retrieval similarity.
+- 🚫 **Hallucination Prevention** — Strict prompt engineering + Low confidence fallback.
+- 📚 **Source Citations** — Every claim cited with exact filename and page number.
+- 💾 **Persistent Index** — Vector store saved to disk, no re-embedding on restart.
+- 🔄 **Multi-file Support** — Query across multiple PDFs and images simultaneously.
+- 🧾 **Document Summaries** — Global document questions answered from stored summaries and metadata.
 
 ### UI Features
-- 🌑 **Dark Theme** — GitHub-inspired dark color palette
-- 💬 **Chat Interface** — Streamlit native chat with styled bubbles
-- 🎨 **Color-coded Badges** — Green / Yellow / Red confidence indicators
-- 📂 **File Status Panel** — Shows indexed files, chunk counts, system status
-- 📈 **Chunk Statistics** — Total / PDF / Image chunk counts displayed
-- 🗑️ **Reset Button** — Clear everything and start fresh
+- 🌑 **Dark Theme** — GitHub-inspired dark color palette.
+- 💬 **Chat Interface** — Streamlit native chat with styled bubbles.
+- 🎨 **Color-coded Badges** — Green / Yellow / Red confidence indicators.
+- 📂 **File Status Panel** — Shows indexed files, chunk counts, system status.
+- 📈 **Chunk Statistics** — Total / PDF / Image chunk counts displayed.
+- 🗑️ **Reset Button** — Clear everything and start fresh.
 
 ---
 
@@ -197,20 +201,22 @@ top2_avg = average of top 2 normalized scores
 | **PDF Extraction** | PyMuPDF (fitz) | Multi-mode text extraction |
 | **Image Processing** | Pillow | Compression before Vision API |
 | **RAG Framework** | LangChain 0.2 + langchain-openai | Pipeline orchestration |
+| **Metadata Store** | JSON file | File-level summaries and document stats |
 | **Environment** | python-dotenv | Secure API key management |
 
 ---
 
 ## 📁 Project Structure
 
-```
+```text
 rag-document-qa/
 │
-├── app.py                  # Streamlit frontend — dark UI, chat interface, sidebar
-├── ingestion.py             # Document ingestion — PDF extraction + OpenAI vision + semantic chunking
+├── app.py                  # Streamlit frontend — chat UI, routing, sidebar
+├── ingestion.py             # Document ingestion — PDF extraction + OpenAI vision + semantic chunking + summaries
 ├── retrieval.py             # Vector store — OpenAI embeddings, FAISS, confidence scoring
 ├── generation.py            # Answer generation — OpenAI LLM, prompt engineering, citations
 ├── config.py                # Central config — paths, models, thresholds, chunking params
+├── document_store.py        # Summary + metadata store per document
 │
 ├── uploads/                 # Temporary uploaded files (git-ignored)
 ├── vectorstore/             # Persistent FAISS index (git-ignored)
@@ -221,22 +227,20 @@ rag-document-qa/
 ├── utils/
 │   └── __init__.py
 │
-├── .env                     # API keys (git-ignored — never commit)
-├── .gitignore                # Git ignore rules
+├── .env                     # API key (git-ignored — never commit)
+├── .gitignore               # Git ignore rules
 ├── requirements.txt         # All Python dependencies
-└── README.md                 # This file
+└── README.md                # This file
 ```
-
-
 
 ---
 
 ## 🚀 Setup & Installation
 
 ### Prerequisites
-- Python 3.10 or higher
-- An OpenAI API key
-- Git installed
+- Python 3.10 or higher.
+- An OpenAI API key.
+- Git installed.
 
 ### 1. Clone the Repository
 
@@ -267,9 +271,9 @@ pip install -r requirements.txt
 
 **OpenAI API Key:**
 1. Go to [https://platform.openai.com/api-keys](https://platform.openai.com/api-keys)
-2. Click **Create new secret key**
-3. Copy the key (starts with `sk-`)
-4. Note: OpenAI API usage is billed — gpt-4o-mini and text-embedding-3-small are both low-cost, but this is not a free tier like the old HuggingFace Inference API was.
+2. Click **Create new secret key**.
+3. Copy the key (starts with `sk-`).
+4. Note: OpenAI API usage is billed — gpt-4o-mini and text-embedding-3-small are both low-cost, but this is not a free tier.
 
 ### 5. Configure Environment
 
@@ -285,35 +289,35 @@ OPENAI_API_KEY=your-openai-api-key-here
 streamlit run app.py
 ```
 
-The app opens automatically at `http://localhost:8501`
+The app opens automatically at `http://localhost:8501`.
 
 ---
 
 ## 💡 How to Use
 
 ### Step 1: Upload Documents
-- Click the file uploader in the sidebar
-- Select one or more **PDF files** and/or **images** (JPG, PNG, WEBP)
-- Click **🚀 Process & Index Documents**
-- Wait for indexing to complete (progress bar shown)
+- Click the file uploader in the sidebar.
+- Select one or more **PDF files** and/or **images** (JPG, PNG, WEBP).
+- Click **🚀 Process & Index Documents**.
+- Wait for indexing to complete.
 
 ### Step 2: Ask Questions
-- Type your question in the chat input at the bottom
-- Press **Enter** to submit
+- Type your question in the chat input at the bottom.
+- Press **Enter** to submit.
 
 ### Step 3: Read the Answer
-- Answer appears with full source citations
-- Confidence badge shows 🟢 High / 🟡 Medium / 🔴 Low
-- Sources panel shows exact filename and page number
+- Answer appears with full source citations.
+- Confidence badge shows 🟢 High / 🟡 Medium / 🔴 Low.
+- Sources panel shows exact filename and page number.
 
 ### Step 4: Reset When Done
-- Click **🗑️ Clear & Start Over** in the sidebar to upload new documents
+- Click **🗑️ Clear & Start Over** in the sidebar to upload new documents.
 
 ---
 
 ## ⚙️ Configuration Reference
 
-All settings are centralized in `config.py`:
+All settings are centralized in `config.py`.
 
 ### Model Settings
 
@@ -339,65 +343,67 @@ All settings are centralized in `config.py`:
 | Setting | Default | Description |
 |---|---|---|
 | `TOP_K_RESULTS` | `6` | Number of chunks retrieved per query |
-| `CONFIDENCE_HIGH` | `0.60` | Threshold for High confidence — **⚠️ post-migration, re-tune this** |
-| `CONFIDENCE_MEDIUM` | `0.40` | Threshold for Medium confidence — **⚠️ post-migration, re-tune this** |
+| `CONFIDENCE_HIGH` | `0.60` | Threshold for High confidence — re-tune after migration |
+| `CONFIDENCE_MEDIUM` | `0.40` | Threshold for Medium confidence — re-tune after migration |
 
-> **⚠️ Updated Migration note:** New thresholds are calibrated which are suitable for OpenAI's `text-embedding-3-small` model. Also disabled the feature of Query Rewriting which not only worsened the retrieval but increased API cost. Rebuild the FAISS index, run test queries, log the `top2_avg` scores, and adjust these two constants before trusting confidence labels in production. 
+> **Migration note:** These thresholds were calibrated for the OpenAI embeddings setup. If you change the embedding model again, rebuild the FAISS index and re-tune the confidence thresholds before trusting them in production.
 
 ---
 
 ## 🔬 How Semantic Chunking Works
 
 Traditional character-based chunking splits text every N characters regardless of meaning:
+
 ❌ Character Chunking:
-"Machine learning is a subset of AI. It learns from da" ← cut mid-word
+
+```text
+"Machine learning is a subset of AI. It learns from da"
 "ta automatically without being explicitly programmed."
-
-
+```
 
 Semantic chunking uses embeddings to detect where the **meaning changes**:
+
 ✅ Semantic Chunking:
+
+```text
 Chunk 1: "Machine learning is a subset of AI that learns
 from data automatically." ← complete thought
 
 Chunk 2: "Supervised learning uses labeled input-output
 pairs to train a model." ← new topic, new chunk
-
-
+```
 
 **Process:**
-1. Every sentence is embedded into a vector (via OpenAI Embeddings API)
-2. Cosine similarity measured between consecutive sentences
-3. Large similarity drops = topic boundary = split point
-4. Oversized chunks are split further with recursive character splitting
-5. Undersized chunks (< 50 chars) are dropped as noise
-
-> **Cost note:** Since semantic chunking embeds every sentence via a paid API call, large PDFs will incur more embedding cost and latency than under the free HuggingFace Inference tier used previously.
+1. Every sentence is embedded into a vector.
+2. Cosine similarity is measured between consecutive sentences.
+3. Large similarity drops = topic boundary = split point.
+4. Oversized chunks are split further with recursive character splitting.
+5. Undersized chunks (< 50 chars) are dropped as noise.
 
 ---
 
 ## 🔬 How Confidence Scoring Works
 
+```text
 FAISS returns L2 distance (lower = more similar)
-↓
+              ↓
 Normalize: similarity = 1 / (1 + L2_distance)
-↓
+              ↓
 Take average of top-2 scores (more stable than best-only)
-↓
+              ↓
 ┌────────────────────────────────────────────┐
-│ top2_avg ≥ CONFIDENCE_HIGH → 🟢 High │
-│ → LLM generates answer │
-│ │
-│ top2_avg ≥ CONFIDENCE_MEDIUM → 🟡 Medium │
-│ → LLM generates answer │
-│ │
-│ top2_avg < CONFIDENCE_MEDIUM → 🔴 Low │
-│ → Fallback triggered │
-│ → LLM NOT called │
-│ → Zero API cost │
+│ top2_avg ≥ 0.60 → 🟢 High Confidence      │
+│                   → LLM generates answer   │
+│                                            │
+│ top2_avg ≥ 0.40 → 🟡 Medium Confidence    │
+│                   → LLM generates answer   │
+│                                            │
+│ top2_avg < 0.40 → 🔴 Low Confidence       │
+│                   → Fallback triggered     │
+│                   → LLM NOT called         │
+│                   → Zero API cost          │
 └────────────────────────────────────────────┘
-
-Threshold values shown are defaults in `config.py` (`CONFIDENCE_HIGH = 0.60`, `CONFIDENCE_MEDIUM = 0.40`) and require re-tuning after the OpenAI embeddings migration — see [Configuration Reference](#️-configuration-reference) above.
+```
 
 ---
 
@@ -406,22 +412,22 @@ Threshold values shown are defaults in `config.py` (`CONFIDENCE_HIGH = 0.60`, `C
 | Limitation | Details |
 |---|---|
 | **Scanned PDFs** | PDFs that are scanned images cannot be processed by PyMuPDF. Use image upload instead. |
-| **Large Documents** | 100+ page PDFs take significant time and cost to embed. Semantic chunking adds extra OpenAI Embeddings API calls per sentence. |
-| **No Conversation Memory** | Each question answered independently — no multi-turn context. |
-| **No Document Summary** | Cannot summarize an entire document — answers are chunk-level only. |
+| **Large Documents** | Very large PDFs take significant time and cost to embed. Semantic chunking adds extra OpenAI Embeddings API calls per sentence. |
+| **No Conversation Memory** | Each question is answered independently — no multi-turn context. |
+| **No Document Summary** | Summary mode is limited to stored per-file summaries, not full multi-turn summarization. |
 | **Image Size Limit** | Images compressed to ≤3MB before Vision API. Very small or blurry images may produce poor descriptions. |
 | **English Primary** | Best performance on English documents. Other languages may work but are untested. |
 | **API Dependency** | Requires an active OpenAI API key with available billing/credits. Offline use not supported. |
-| **API Costs** | Unlike the previous free-tier HuggingFace embeddings, all embedding, chat, and vision calls now incur OpenAI usage costs. |
-| **Confidence Threshold Drift** | Thresholds must be re-tuned post-migration since OpenAI embedding similarity distributions differ from MiniLM's. |
+| **API Costs** | Embedding, chat, and vision calls all incur OpenAI usage costs. |
+| **Confidence Threshold Drift** | Thresholds must be re-tuned if the embedding model changes again. |
 
 ---
 
 ## 🔮 Planned Improvements
 
 - [ ] Conversation memory (sliding window, last 5 turns)
-- [ ] Document summarization (budget-aware, top-N chunks instead of full map-reduce)
-- [ ] DOCX / PPTX / CSV / Excel / TXT file format support
+- [ ] Budget-aware document summarization improvements
+- [ ] DOCX / PPTX / CSV / Excel / TXT file support
 - [ ] Scanned PDF support via Tesseract OCR
 - [ ] Chat history export (PDF / TXT)
 - [ ] Document preview in sidebar
@@ -433,25 +439,16 @@ Threshold values shown are defaults in `config.py` (`CONFIDENCE_HIGH = 0.60`, `C
 ---
 
 ## 📄 License
+
 MIT License
 
 Copyright (c) 2024 Aliraza Amjad Shaikh
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
-
-text
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
 
 ---
 
@@ -473,5 +470,3 @@ text
     ⭐ Star this repo if you found it useful!
   </a>
 </p>
-
----
