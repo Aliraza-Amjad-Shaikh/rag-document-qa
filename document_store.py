@@ -13,6 +13,11 @@ def load_document_store() -> dict:
     with open(DOCUMENT_STORE_PATH, "r", encoding="utf-8") as f:
         return json.load(f)
 
+def clear_document_store() -> None:
+    """Delete the document store file entirely (used on full reset)."""
+    if os.path.exists(DOCUMENT_STORE_PATH):
+        os.remove(DOCUMENT_STORE_PATH)
+
 def save_document_store(store: dict) -> None:
     os.makedirs(os.path.dirname(DOCUMENT_STORE_PATH), exist_ok=True)
     with open(DOCUMENT_STORE_PATH, "w", encoding="utf-8") as f:
