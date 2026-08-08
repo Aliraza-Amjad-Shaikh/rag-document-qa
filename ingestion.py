@@ -19,7 +19,7 @@ from config import (
     PDF_EXTENSIONS,
     IMAGE_EXTENSIONS,
     SUPPORTED_EXTENSIONS,
-    OPENAI_API_KEY,
+    # OPENAI_API_KEY,
     VISION_MODEL,
     EMBEDDING_MODEL,
     SEMANTIC_BREAKPOINT_TYPE,
@@ -35,7 +35,7 @@ from document_store import add_document_entry
 # Initialize Semantic Chunker
 # ─────────────────────────────────────────────
 
-def get_semantic_chunker() -> SemanticChunker:
+def get_semantic_chunker(api_key: str) -> SemanticChunker:
     """
     Initialize LangChain SemanticChunker using OpenAI
     embeddings to detect topic boundaries in text.
@@ -49,7 +49,7 @@ def get_semantic_chunker() -> SemanticChunker:
     """
     embeddings = OpenAIEmbeddings(
         model=EMBEDDING_MODEL,
-        openai_api_key=OPENAI_API_KEY
+        api_key=api_key
     )
 
     return SemanticChunker(
@@ -241,6 +241,7 @@ def semantic_chunk_text(
     source: str,
     page_number: int,
     doc_type: str,
+    api_key: str,
     chunk_id_start: int = 0
 ) -> List[Document]:
     """
@@ -265,7 +266,7 @@ def semantic_chunk_text(
     if not text.strip():
         return []
 
-    semantic_chunker = get_semantic_chunker()
+    semantic_chunker = get_semantic_chunker(api_key)
     recursive_splitter = get_recursive_splitter()
 
     # ── Step 1: Semantic split ──
@@ -339,7 +340,7 @@ def semantic_chunk_text(
 # Document Summary Generation
 # ─────────────────────────────────────────────
 
-def generate_document_summary(full_text: str, filename: str) -> str:
+def generate_document_summary(full_text: str, filename: str, api_key: str) -> str:
     """
     Generate a short summary of a document's full text using the LLM.
     Called once per file at ingestion time — not per question.
@@ -356,7 +357,7 @@ def generate_document_summary(full_text: str, filename: str) -> str:
         Summary string (4-6 sentences)
     """
     try:
-        llm = ChatOpenAI(model=CHAT_MODEL, openai_api_key=OPENAI_API_KEY, temperature=0)
+        llm = ChatOpenAI(model=CHAT_MODEL, api_key=api_key, temperature=0)
         prompt = f"""Summarize this document in 4-6 sentences, covering its main topic, purpose, and key sections.
 
 Document: {filename}
@@ -377,7 +378,7 @@ Summary:"""
 # PDF Ingestion Pipeline
 # ─────────────────────────────────────────────
 
-def ingest_pdf(pdf_path: str) -> List[Document]:
+def ingest_pdf(pdf_path: str, api_key: str) -> List[Document]:
     """
     Full PDF ingestion pipeline:
     extract text (multi-mode) → clean → semantic chunk → metadata → summary
@@ -399,6 +400,7 @@ def ingest_pdf(pdf_path: str) -> List[Document]:
             source=page["source"],
             page_number=page["page_number"],
             doc_type="pdf",
+            api_key=api_key,
             chunk_id_start=chunk_id
         )
         all_chunks.extend(chunks)
@@ -467,7 +469,7 @@ def compress_image(image_path: str, max_size_mb: float = 3.0) -> bytes:
 # Image Ingestion (OpenAI Vision)
 # ─────────────────────────────────────────────
 
-def describe_image_with_vision(image_path: str) -> str:
+def describe_image_with_vision(image_path: str, api_key: str) -> str:
     """
     Use OpenAI Vision (gpt-4o-mini) to extract and describe image content.
 
@@ -504,7 +506,7 @@ IMPORTANT RULES:
 
         llm = ChatOpenAI(
             model=VISION_MODEL,
-            openai_api_key=OPENAI_API_KEY,
+            api_key=api_key,
             temperature=0
         )
 
@@ -526,7 +528,7 @@ IMPORTANT RULES:
         print(f"  [IMAGE] ❌ OpenAI Vision failed for '{filename}': {e}")
         return f"Image content could not be extracted: {e}"
 
-def ingest_image(image_path: str) -> List[Document]:
+def ingest_image(image_path: str, api_key: str) -> List[Document]:
     """
     Full image ingestion pipeline:
     compress → OpenAI Vision describes → semantic chunk → metadata → summary
@@ -539,7 +541,7 @@ def ingest_image(image_path: str) -> List[Document]:
     """
     filename = os.path.basename(image_path)
     print(f"\n[IMAGE] Ingesting: {filename}")
-    description = describe_image_with_vision(image_path)
+    description = describe_image_with_vision(image_path, api_key)
 
     if not description.strip():
         print(f"[IMAGE] ❌ Empty description for {filename}")
@@ -551,6 +553,7 @@ def ingest_image(image_path: str) -> List[Document]:
         source=filename,
         page_number=0,
         doc_type="image",
+        api_key=api_key,
         chunk_id_start=0
     )
 
@@ -569,7 +572,7 @@ def ingest_image(image_path: str) -> List[Document]:
     print(f"[IMAGE] ✅ {len(chunks)} semantic chunk(s) produced")
 
     # ── Generate summary + save metadata entry ──
-    summary = generate_document_summary(description, filename)
+    summary = generate_document_summary(description, filename, api_key)
     add_document_entry(
         filename=filename,
         doc_type="image",
@@ -610,7 +613,7 @@ def save_uploaded_files(uploaded_files) -> List[str]:
 # Unified Ingestion Pipeline
 # ─────────────────────────────────────────────
 
-def ingest_documents(file_paths: List[str]) -> List[Document]:
+def ingest_documents(file_paths: List[str], api_key: str) -> List[Document]:
     """
     Main entry point — routes files to correct pipeline.
 
@@ -632,9 +635,9 @@ def ingest_documents(file_paths: List[str]) -> List[Document]:
 
         try:
             if ext in PDF_EXTENSIONS:
-                docs = ingest_pdf(path)
+                docs = ingest_pdf(path, api_key)
             elif ext in IMAGE_EXTENSIONS:
-                docs = ingest_image(path)
+                docs = ingest_image(path, api_key)
             else:
                 continue
             all_documents.extend(docs)
