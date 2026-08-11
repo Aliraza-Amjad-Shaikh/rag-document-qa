@@ -27,120 +27,366 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+# ── Theme: "reading room" — a library-card aesthetic for a document Q&A tool.
+# Serif display for headings (Fraunces), clean sans for UI (Inter),
+# monospace for data / filenames / citations (JetBrains Mono).
 st.markdown("""
 <style>
-/* ===== Safe Dark Theme for Streamlit ===== */
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
-/* App background */
+:root {
+  --bg: #0a0e14;
+  --bg-alt: #0d131b;
+  --surface: #121a24;
+  --surface-2: #182230;
+  --border: rgba(148, 163, 184, 0.14);
+  --border-strong: rgba(148, 163, 184, 0.28);
+  --text: #e6edf5;
+  --text-muted: #8fa1b3;
+  --accent: #f5b942;
+  --accent-soft: rgba(245, 185, 66, 0.14);
+  --accent-2: #56b6f0;
+  --accent-2-soft: rgba(86, 182, 240, 0.14);
+  --success: #34d399;
+  --success-soft: rgba(52, 211, 153, 0.12);
+  --warning: #f5b942;
+  --warning-soft: rgba(245, 185, 66, 0.12);
+  --danger: #f2637a;
+  --danger-soft: rgba(242, 99, 122, 0.12);
+}
+
+html, body, [class*="css"] {
+  font-family: 'Inter', sans-serif;
+}
+
+/* ===== App shell ===== */
 .stApp {
-  background-color: #0b1220;
-  color: #e6edf3;
+  background:
+    radial-gradient(1200px 600px at 15% -10%, rgba(245, 185, 66, 0.05), transparent 55%),
+    radial-gradient(1000px 500px at 100% 0%, rgba(86, 182, 240, 0.05), transparent 55%),
+    var(--bg);
+  color: var(--text);
 }
 
-/* Main container spacing */
 .main .block-container {
-  padding-top: 2rem;
+  padding-top: 1.6rem;
   padding-bottom: 3rem;
-  max-width: 1000px;
+  max-width: 980px;
 }
 
-/* Sidebar background */
-section[data-testid="stSidebar"] {
-  background-color: #0f172a !important;
-  border-right: 1px solid rgba(148, 163, 184, 0.15);
-}
-
-/* Sidebar content text */
-section[data-testid="stSidebar"] * {
-  color: #e5e7eb !important;
-}
-
-/* Headings */
 h1, h2, h3 {
-  color: #e6edf3 !important;
-  letter-spacing: -0.02em;
+  font-family: 'Fraunces', serif !important;
+  color: var(--text) !important;
+  letter-spacing: -0.01em;
+  font-weight: 600 !important;
 }
 
-/* Streamlit divider */
 hr {
-  border-color: rgba(148, 163, 184, 0.18) !important;
+  border-color: var(--border) !important;
+  margin: 1.1rem 0 !important;
 }
 
-/* File uploader */
+/* ===== Custom header ===== */
+.rd-header {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  padding: 0.4rem 0 0.2rem 0;
+}
+.rd-header .rd-badge {
+  width: 46px; height: 46px;
+  border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.4rem;
+  background: linear-gradient(145deg, var(--accent-soft), var(--accent-2-soft));
+  border: 1px solid var(--border-strong);
+  flex-shrink: 0;
+}
+.rd-header .rd-title {
+  font-family: 'Fraunces', serif;
+  font-size: 1.7rem;
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1.15;
+}
+.rd-header .rd-subtitle {
+  color: var(--text-muted);
+  font-size: 0.92rem;
+  margin-top: 0.15rem;
+}
+
+/* ===== Sidebar ===== */
+section[data-testid="stSidebar"] {
+  background: linear-gradient(180deg, var(--bg-alt), var(--bg)) !important;
+  border-right: 1px solid var(--border);
+}
+section[data-testid="stSidebar"] * {
+  color: var(--text) !important;
+}
+section[data-testid="stSidebar"] .rd-sidebar-title {
+  font-family: 'Fraunces', serif;
+  font-size: 1.25rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+section[data-testid="stSidebar"] .rd-sidebar-caption {
+  color: var(--text-muted) !important;
+  font-size: 0.8rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  margin-top: -0.2rem;
+}
+section[data-testid="stSidebar"] h3 {
+  font-family: 'Inter', sans-serif !important;
+  font-size: 0.78rem !important;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted) !important;
+  font-weight: 700 !important;
+  margin-top: 0.4rem;
+}
+
+/* ===== File uploader ===== */
 div[data-testid="stFileUploader"] {
-  background: rgba(255,255,255,0.03) !important;
-  border: 1px dashed rgba(148, 163, 184, 0.35) !important;
-  border-radius: 12px !important;
-  padding: 0.6rem !important;
+  background: var(--surface) !important;
+  border: 1.5px dashed var(--border-strong) !important;
+  border-radius: 14px !important;
+  padding: 0.7rem !important;
+  transition: border-color 0.15s ease, background 0.15s ease;
 }
 div[data-testid="stFileUploader"]:hover {
-  border-color: rgba(96,165,250,0.9) !important;
+  border-color: var(--accent-2) !important;
+  background: var(--surface-2) !important;
 }
-div[data-testid="stFileUploadDropzone"] p {
-  color: rgba(226,232,240,0.75) !important;
+div[data-testid="stFileUploadDropzone"] p,
+div[data-testid="stFileUploadDropzone"] span {
+  color: var(--text-muted) !important;
 }
 
-/* Buttons */
+/* ===== Buttons ===== */
 .stButton > button {
-  border-radius: 12px !important;
-  font-weight: 700 !important;
-  border: 1px solid rgba(148, 163, 184, 0.18) !important;
-  background: linear-gradient(135deg, #2563eb, #7c3aed) !important;
-  color: white !important;
-  padding: 0.6rem 1rem !important;
-  transition: transform 0.12s ease, filter 0.12s ease;
+  border-radius: 10px !important;
+  font-weight: 600 !important;
+  font-size: 0.92rem !important;
+  border: 1px solid var(--border-strong) !important;
+  background: linear-gradient(135deg, #d99a2b, #f5b942) !important;
+  color: #1a1305 !important;
+  padding: 0.55rem 1rem !important;
+  transition: transform 0.12s ease, filter 0.12s ease, box-shadow 0.12s ease;
+  box-shadow: 0 1px 0 rgba(255,255,255,0.15) inset;
 }
 .stButton > button:hover {
   transform: translateY(-1px);
-  filter: brightness(1.05);
+  filter: brightness(1.06);
+  box-shadow: 0 6px 16px rgba(245, 185, 66, 0.18);
 }
+.stButton > button:active { transform: translateY(0); }
 
-/* Secondary buttons (like Clear) - Streamlit may render differently, keep generic */
 button[kind="secondary"] {
-  background: rgba(248,113,113,0.08) !important;
-  border: 1px solid rgba(248,113,113,0.35) !important;
-  color: #fecaca !important;
+  background: var(--danger-soft) !important;
+  border: 1px solid rgba(242, 99, 122, 0.35) !important;
+  color: #fca5b3 !important;
 }
 
-/* Metrics */
+/* ===== Stat cards (replace default st.metric look) ===== */
+.rd-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.5rem;
+  margin: 0.4rem 0 0.2rem 0;
+}
+.rd-stat-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 0.6rem 0.5rem;
+  text-align: center;
+}
+.rd-stat-card .rd-stat-value {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 1.35rem;
+  font-weight: 600;
+  color: var(--accent);
+}
+.rd-stat-card .rd-stat-label {
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  margin-top: 0.1rem;
+}
+
+/* ===== Status pill ===== */
+.rd-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.4rem 0.75rem;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+}
+.rd-status-pill .rd-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+}
+.rd-status-active .rd-dot { background: var(--success); box-shadow: 0 0 8px var(--success); }
+.rd-status-idle .rd-dot { background: var(--text-muted); }
+
+/* ===== Indexed file rows (library card look) ===== */
+.rd-file-row {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.45rem 0.6rem;
+  border-radius: 9px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  margin-bottom: 0.35rem;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.82rem;
+  border-left: 3px solid var(--accent-2);
+}
+
+/* ===== Metrics (fallback native, in case used elsewhere) ===== */
 div[data-testid="stMetric"] {
-  background: rgba(255,255,255,0.03);
-  border: 1px solid rgba(148, 163, 184, 0.15);
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 12px;
   padding: 0.7rem 0.8rem;
 }
 
-/* Chat input container */
+/* ===== Chat input ===== */
 div[data-testid="stChatInput"] {
-  background: rgba(15,23,42,0.9) !important;
-  border-top: 1px solid rgba(148, 163, 184, 0.15) !important;
+  background: rgba(10, 14, 20, 0.92) !important;
+  border-top: 1px solid var(--border) !important;
+  backdrop-filter: blur(6px);
 }
-
-/* Chat textarea */
 div[data-testid="stChatInput"] textarea {
-  background: rgba(255,255,255,0.04) !important;
-  border: 1px solid rgba(148, 163, 184, 0.18) !important;
-  color: #e5e7eb !important;
+  background: var(--surface) !important;
+  border: 1px solid var(--border-strong) !important;
+  color: var(--text) !important;
   border-radius: 12px !important;
+  font-family: 'Inter', sans-serif !important;
 }
 div[data-testid="stChatInput"] textarea:focus {
-  border-color: rgba(96,165,250,0.95) !important;
-  box-shadow: 0 0 0 3px rgba(37,99,235,0.18) !important;
+  border-color: var(--accent-2) !important;
+  box-shadow: 0 0 0 3px var(--accent-2-soft) !important;
 }
 
-/* Expanders */
+/* ===== Chat bubbles ===== */
+div[data-testid="stChatMessage"] {
+  background: var(--surface) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 14px !important;
+  padding: 0.3rem 0.2rem !important;
+  margin-bottom: 0.6rem !important;
+}
+
+/* ===== Expanders (sources) ===== */
 div[data-testid="stExpander"] {
-  border: 1px solid rgba(148, 163, 184, 0.15) !important;
+  border: 1px solid var(--border) !important;
   border-radius: 12px !important;
-  background: rgba(255,255,255,0.02) !important;
+  background: var(--surface) !important;
+  overflow: hidden;
+}
+div[data-testid="stExpander"] summary {
+  font-family: 'Inter', sans-serif !important;
+  font-weight: 600 !important;
+  font-size: 0.86rem !important;
 }
 
-/* Success/Warning/Error boxes */
+/* ===== Citation chips (signature element) ===== */
+.rd-citation {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.7rem 0.5rem 0.85rem;
+  margin-bottom: 0.4rem;
+  border-radius: 8px;
+  background: var(--surface-2);
+  border-top: 1px dashed var(--border-strong);
+  border-left: 3px solid var(--accent);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.82rem;
+  color: var(--text);
+}
+.rd-citation .rd-citation-icon { font-size: 0.95rem; flex-shrink: 0; }
+.rd-citation .rd-citation-meta { color: var(--text-muted); font-size: 0.76rem; }
+
+/* ===== Confidence + fallback badges ===== */
+.rd-badge-row { display: flex; gap: 0.5rem; flex-wrap: wrap; margin: 0.35rem 0; }
+.rd-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.32rem 0.7rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  border: 1px solid var(--border-strong);
+}
+.rd-badge-high   { background: var(--success-soft); color: #6ee7b7; }
+.rd-badge-medium { background: var(--warning-soft); color: #fcd34d; }
+.rd-badge-low    { background: var(--danger-soft);  color: #fca5b3; }
+.rd-badge-fallback { background: var(--danger-soft); color: #fca5b3; }
+
+/* ===== Empty state / intro cards ===== */
+.rd-intro-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 1.1rem 1rem;
+  height: 100%;
+}
+.rd-intro-card .rd-intro-icon { font-size: 1.4rem; margin-bottom: 0.35rem; }
+.rd-intro-card .rd-intro-title {
+  font-family: 'Fraunces', serif;
+  font-weight: 600;
+  font-size: 1rem;
+  margin-bottom: 0.25rem;
+}
+.rd-intro-card .rd-intro-body {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+
+.rd-empty-chat {
+  text-align: center;
+  color: var(--text-muted);
+  padding: 2.2rem 1rem;
+  border: 1px dashed var(--border-strong);
+  border-radius: 14px;
+  background: var(--surface);
+  margin: 0.5rem 0 1rem 0;
+}
+
+/* ===== Success/Warning/Error native boxes (auth screen etc.) ===== */
 div[data-testid="stAlert"] {
-  background: rgba(255,255,255,0.03) !important;
-  border: 1px solid rgba(148, 163, 184, 0.15) !important;
+  background: var(--surface) !important;
+  border: 1px solid var(--border) !important;
   border-radius: 12px !important;
-  color: #e5e7eb !important;
+  color: var(--text) !important;
+}
+
+/* ===== Auth gate card ===== */
+.rd-auth-card {
+  max-width: 520px;
+  margin: 2.2rem auto 0 auto;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 18px;
+  padding: 2rem 2.1rem;
+  text-align: center;
+}
+.rd-auth-card .rd-auth-icon {
+  font-size: 2rem;
+  margin-bottom: 0.6rem;
 }
 
 /* Hide Streamlit chrome */
@@ -149,6 +395,44 @@ footer { visibility: hidden; }
 header { visibility: hidden; }
 </style>
 """, unsafe_allow_html=True)
+
+
+# ── Small display helpers (presentation only — no logic changes) ──
+
+def render_confidence_badge(confidence: str, fallback: bool = False):
+    conf_class = {
+        "High": "rd-badge-high",
+        "Medium": "rd-badge-medium",
+    }.get(confidence, "rd-badge-low")
+    conf_icon = {"High": "🟢", "Medium": "🟡"}.get(confidence, "🔴")
+
+    html = f'<div class="rd-badge-row"><span class="rd-badge {conf_class}">{conf_icon} Confidence: {confidence}</span>'
+    if fallback:
+        html += '<span class="rd-badge rd-badge-fallback">⚠️ Fallback — not found in documents</span>'
+    html += "</div>"
+    st.markdown(html, unsafe_allow_html=True)
+
+
+def render_sources(sources):
+    if not sources:
+        return
+    with st.expander("📚 Sources"):
+        for src in sources:
+            if src["type"] == "pdf":
+                st.markdown(
+                    f'<div class="rd-citation"><span class="rd-citation-icon">📄</span>'
+                    f'<span>{src["source"]}</span>'
+                    f'<span class="rd-citation-meta">· page {src["page_number"]}</span></div>',
+                    unsafe_allow_html=True
+                )
+            else:
+                st.markdown(
+                    f'<div class="rd-citation"><span class="rd-citation-icon">🖼️</span>'
+                    f'<span>{src["image_name"]}</span>'
+                    f'<span class="rd-citation-meta">· image</span></div>',
+                    unsafe_allow_html=True
+                )
+
 
 # ── Session State ──
 defaults = {
@@ -169,7 +453,15 @@ for k, v in defaults.items():
 # ── API KEY GATE ──
 
 if not st.session_state.api_key_validated:
-    st.title("🔐 OpenAI API Key Required")
+    st.markdown(
+        """
+        <div class="rd-auth-card">
+            <div class="rd-auth-icon">🔐</div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+    st.title("OpenAI API Key Required")
     st.write(
         "Enter your OpenAI API key to use the document Q&A system."
     )
@@ -207,8 +499,13 @@ api_key = st.session_state.openai_api_key
 
 # ── SIDEBAR ──
 with st.sidebar:
-    st.title("📚 RAG Document Q&A")
-    st.caption("Retrieval-Augmented Generation System")
+    st.markdown(
+        """
+        <div class="rd-sidebar-title">📚 RAG Document Q&A</div>
+        <div class="rd-sidebar-caption">Retrieval-Augmented Generation</div>
+        """,
+        unsafe_allow_html=True
+    )
     st.divider()
 
     # Upload
@@ -270,18 +567,45 @@ with st.sidebar:
     # Status
     st.subheader("⚡ Status")
     if st.session_state.is_ready:
-        st.success("Vector store active")
-        st.info(f"{len(st.session_state.indexed_files)} file(s) loaded")
-        st.metric("Total Chunks", st.session_state.total_chunks)
-        st.metric("PDF Chunks",   st.session_state.pdf_chunks)
-        st.metric("Image Chunks", st.session_state.image_chunks)
+        st.markdown(
+            '<div class="rd-status-pill rd-status-active"><span class="rd-dot"></span>Vector store active</div>',
+            unsafe_allow_html=True
+        )
+        st.markdown(
+            f'<p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 0.5rem;">'
+            f'{len(st.session_state.indexed_files)} file(s) loaded</p>',
+            unsafe_allow_html=True
+        )
+
+        st.markdown(
+            f"""
+            <div class="rd-stat-grid">
+                <div class="rd-stat-card">
+                    <div class="rd-stat-value">{st.session_state.total_chunks}</div>
+                    <div class="rd-stat-label">Total</div>
+                </div>
+                <div class="rd-stat-card">
+                    <div class="rd-stat-value">{st.session_state.pdf_chunks}</div>
+                    <div class="rd-stat-label">PDF</div>
+                </div>
+                <div class="rd-stat-card">
+                    <div class="rd-stat-value">{st.session_state.image_chunks}</div>
+                    <div class="rd-stat-label">Image</div>
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
 
         st.divider()
         st.subheader("📂 Indexed Files")
         for fname in st.session_state.indexed_files:
             ext  = os.path.splitext(fname)[1].lower()
             icon = "📄" if ext == ".pdf" else "🖼️"
-            st.write(f"{icon} {fname}")
+            st.markdown(
+                f'<div class="rd-file-row">{icon} {fname}</div>',
+                unsafe_allow_html=True
+            )
 
         if st.button("🔒 Remove API Key"):
             st.session_state.openai_api_key = None
@@ -307,12 +631,25 @@ with st.sidebar:
                         pass
             st.rerun()
     else:
-        st.warning("No documents loaded")
+        st.markdown(
+            '<div class="rd-status-pill rd-status-idle"><span class="rd-dot"></span>No documents loaded</div>',
+            unsafe_allow_html=True
+        )
         st.write("Upload files to begin")
 
 # ── MAIN AREA ──
-st.title("📚 RAG Document Q&A")
-st.caption("Upload PDFs or images · Ask questions · Get cited answers")
+st.markdown(
+    """
+    <div class="rd-header">
+        <div class="rd-badge">📚</div>
+        <div>
+            <div class="rd-title">RAG Document Q&A</div>
+            <div class="rd-subtitle">Upload PDFs or images · Ask questions · Get cited answers</div>
+        </div>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
 st.divider()
 
 if not st.session_state.is_ready:
@@ -320,18 +657,44 @@ if not st.session_state.is_ready:
 
     col1, col2, col3 = st.columns(3)
     with col1:
-        st.info("📄 **PDF Support**\n\nMulti-mode text extraction with page citations")
+        st.markdown(
+            """
+            <div class="rd-intro-card">
+                <div class="rd-intro-icon">📄</div>
+                <div class="rd-intro-title">PDF Support</div>
+                <div class="rd-intro-body">Multi-mode text extraction with page citations</div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
     with col2:
-        st.info("🖼️ **Image AI**\n\nGPT-4o Vision reads charts, tables and diagrams")
+        st.markdown(
+            """
+            <div class="rd-intro-card">
+                <div class="rd-intro-icon">🖼️</div>
+                <div class="rd-intro-title">Image AI</div>
+                <div class="rd-intro-body">GPT-4o Vision reads charts, tables and diagrams</div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
     with col3:
-        st.info("🎯 **No Hallucination**\n\nConfidence scoring prevents fabricated answers")
+        st.markdown(
+            """
+            <div class="rd-intro-card">
+                <div class="rd-intro-icon">🎯</div>
+                <div class="rd-intro-title">No Hallucination</div>
+                <div class="rd-intro-body">Confidence scoring prevents fabricated answers</div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
     st.stop()
 
 # Chat area
 if not st.session_state.messages:
-    st.write("")
     st.markdown(
-        "<div style='text-align:center; color:gray; padding: 2rem'>💬 Documents ready — ask a question below</div>",
+        '<div class="rd-empty-chat">💬 Documents ready — ask a question below</div>',
         unsafe_allow_html=True
     )
 
@@ -344,23 +707,8 @@ for msg in st.session_state.messages:
             fallback = msg.get("fallback", False)
             sources  = msg.get("sources", [])
 
-            if conf == "High":
-                st.success(f"🟢 Confidence: {conf}")
-            elif conf == "Medium":
-                st.warning(f"🟡 Confidence: {conf}")
-            else:
-                st.error(f"🔴 Confidence: {conf}")
-
-            if fallback:
-                st.error("⚠️ Fallback triggered — answer not found in documents")
-
-            if sources:
-                with st.expander("📚 Sources"):
-                    for src in sources:
-                        if src["type"] == "pdf":
-                            st.write(f"📄 `{src['source']}` — Page {src['page_number']}")
-                        else:
-                            st.write(f"🖼️ `{src['image_name']}` — Image")
+            render_confidence_badge(conf, fallback)
+            render_sources(sources)
 
 # Chat input
 if prompt := st.chat_input("Ask a question about your documents..."):
@@ -392,23 +740,8 @@ if prompt := st.chat_input("Ask a question about your documents..."):
                 fallback = result["fallback"]
                 sources = result["sources"]
 
-                if conf == "High":
-                    st.success(f"🟢 Confidence: {conf}")
-                elif conf == "Medium":
-                    st.warning(f"🟡 Confidence: {conf}")
-                else:
-                    st.error(f"🔴 Confidence: {conf}")
-
-                if fallback:
-                    st.error("⚠️ Fallback triggered")
-
-                if sources:
-                    with st.expander("📚 Sources"):
-                        for src in sources:
-                            if src["type"] == "pdf":
-                                st.write(f"📄 `{src['source']}` — Page {src['page_number']}")
-                            else:
-                                st.write(f"🖼️ `{src['image_name']}` — Image")
+                render_confidence_badge(conf, fallback)
+                render_sources(sources)
 
                 st.session_state.messages.append({
                     "role": "assistant",
